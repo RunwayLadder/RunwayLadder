@@ -1,0 +1,35 @@
+{
+  "name": "treasury-runway",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@9.15.0",
+  "engines": {
+    "node": ">=22",
+    "pnpm": ">=9"
+  },
+  "scripts": {
+    "gate": "pnpm lint && pnpm typecheck && pnpm test",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "program:build": "bash scripts/program.sh build",
+    "program:test": "bash scripts/program.sh test"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.9",
+    "@types/node": "22.20.1",
+    "turbo": "2.10.11",
+    "typescript": "7.0.2",
+    "vitest": "4.1.11"
+  },
+  "pnpm": {
+    "comment": "One line of web3.js only. @coral-xyz/anchor 0.32.1 depends on ^1.69, and a second major in the tree means two copies of PublicKey/Transaction — a mismatch that surfaces as a failed signature or an undecodable account at runtime, not as a build error.",
+    "overrides": {
+      "@solana/web3.js": "1.98.4"
+    }
+  }
+}

@@ -1,0 +1,21 @@
+node_modules/
+dist/
+.turbo/
+*.tsbuildinfo
+
+# Anchor and Cargo output. CARGO_TARGET_DIR lives inside WSL, but a stray local
+# build must not reach the index either.
+target/
+.anchor/
+test-ledger/
+
+.env
+.env.*
+!.env.example
+
+*.json.keypair
+*-keypair.json
+id.json
+
+*.md
+!README.md

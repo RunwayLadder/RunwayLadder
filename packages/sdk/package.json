@@ -1,0 +1,19 @@
+{
+  "name": "@treasury-runway/sdk",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@coral-xyz/anchor": "0.32.1",
+    "@treasury-runway/math": "workspace:*",
+    "@solana/web3.js": "1.98.4",
+    "zod": "4.4.3"
+  }
+}
