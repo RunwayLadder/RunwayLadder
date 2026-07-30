@@ -1,0 +1,6 @@
+# The working copy lives on a Windows drive while Anchor builds inside WSL. Without this git
+# hands the WSL side CRLF, and shell scripts stop running with a symptom that looks
+# like anything except a line ending.
+* text=auto eol=lf
+
+*.so binary

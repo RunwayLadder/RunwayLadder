@@ -1,0 +1,23 @@
+[toolchain]
+anchor_version = "0.32.1"
+solana_version = "4.2.0"
+
+[features]
+resolution = true
+skip-lint = false
+
+[programs.localnet]
+treasury_runway = "HShAvvN6icFTUAs2hiKTHr7nGomyrcKz66wPB6CNhewe"
+
+[programs.devnet]
+treasury_runway = "HShAvvN6icFTUAs2hiKTHr7nGomyrcKz66wPB6CNhewe"
+
+[provider]
+cluster = "localnet"
+wallet = "~/.config/solana/id.json"
+
+# Tests are Rust (litesvm), driven by `cargo test`, not by Anchor's mocha runner:
+# a single node_modules cannot serve Windows and WSL at once, and the TS side of
+# this repo lives on Windows. See docs/PLAN.md → "Development environment".
+[scripts]
+test = "cargo test --manifest-path programs/treasury-runway/Cargo.toml"
