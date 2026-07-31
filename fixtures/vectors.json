@@ -1,0 +1,118 @@
+{
+  "version": 1,
+  "note": "Shared vectors for two implementations of the same math: packages/math (TS) and programs/treasury-runway/src/math.rs (Rust). Both must produce exactly these numbers — a discrepancy means the dashboard shows the treasurer something other than what the program will pay. The values were computed independently of both implementations.",
+  "constants": {
+    "bps_denominator": 10000,
+    "seconds_per_year": 31536000,
+    "rounding": "Every division rounds down. The direction is chosen so that rounding never creates money: the fee rounds down (the protocol takes no more than the exact amount), the promise rounds down (the protocol promises no more than the exact amount)."
+  },
+  "amounts_are": "strings holding an integer in the asset's smallest units — so the number never passes through a double",
+  "fee": {
+    "formula": "fee = amount * fee_bps / bps_denominator; working = amount - fee",
+    "cases": [
+      {
+        "name": "zero-fee",
+        "amount": "1000000000",
+        "fee_bps": 0,
+        "fee": "0",
+        "working": "1000000000"
+      },
+      {
+        "name": "typical-25bps",
+        "amount": "1000000000",
+        "fee_bps": 25,
+        "fee": "2500000",
+        "working": "997500000"
+      },
+      {
+        "name": "rounds-down",
+        "amount": "999",
+        "fee_bps": 25,
+        "fee": "2",
+        "working": "997"
+      },
+      {
+        "name": "whole-amount",
+        "amount": "1000000000",
+        "fee_bps": 10000,
+        "fee": "1000000000",
+        "working": "0"
+      },
+      {
+        "name": "dust-rounds-to-zero",
+        "amount": "1",
+        "fee_bps": 25,
+        "fee": "0",
+        "working": "1"
+      },
+      {
+        "name": "treasury-scale",
+        "amount": "1000000000000000",
+        "fee_bps": 50,
+        "fee": "5000000000000",
+        "working": "995000000000000"
+      }
+    ]
+  },
+  "promise": {
+    "formula": "promised = working + working * rate_bps * seconds / (bps_denominator * seconds_per_year)",
+    "cases": [
+      {
+        "name": "zero-rate",
+        "working": "1000000000",
+        "rate_bps": 0,
+        "seconds": 7776000,
+        "promised": "1000000000"
+      },
+      {
+        "name": "exact-year-5pct",
+        "working": "1000000000",
+        "rate_bps": 500,
+        "seconds": 31536000,
+        "promised": "1050000000"
+      },
+      {
+        "name": "90d-8pct",
+        "working": "997500000",
+        "rate_bps": 800,
+        "seconds": 7776000,
+        "promised": "1017176712"
+      },
+      {
+        "name": "30d-12pct",
+        "working": "1000000000",
+        "rate_bps": 1200,
+        "seconds": 2592000,
+        "promised": "1009863013"
+      },
+      {
+        "name": "180d-12pct-treasury",
+        "working": "1000000000000000",
+        "rate_bps": 1200,
+        "seconds": 15552000,
+        "promised": "1059178082191780"
+      },
+      {
+        "name": "one-second",
+        "working": "1000000000",
+        "rate_bps": 800,
+        "seconds": 1,
+        "promised": "1000000002"
+      },
+      {
+        "name": "doubles-in-a-year",
+        "working": "1000000000",
+        "rate_bps": 10000,
+        "seconds": 31536000,
+        "promised": "2000000000"
+      },
+      {
+        "name": "dust-rounds-down",
+        "working": "1",
+        "rate_bps": 800,
+        "seconds": 86400,
+        "promised": "1"
+      }
+    ]
+  }
+}
