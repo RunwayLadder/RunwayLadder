@@ -22,3 +22,5 @@ anchor-spl = "0.32.1"
 
 [dev-dependencies]
 mollusk-svm = "0.15.0"
+# Reading fixtures/vectors.json in tests — its only purpose.
+serde_json = "1"
