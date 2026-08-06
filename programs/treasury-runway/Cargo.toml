@@ -22,5 +22,12 @@ anchor-spl = "0.32.1"
 
 [dev-dependencies]
 mollusk-svm = "0.15.0"
+mollusk-svm-programs-token = "0.15.0"
+# The majors deliberately match those mollusk is built on, not the ones
+# anchor pulls in: the conversion between them lives in one place in the tests.
+solana-account = "4"
+solana-pubkey = "4"
+solana-instruction = "3"
+solana-program-error = "3"
 # Reading fixtures/vectors.json in tests — its only purpose.
 serde_json = "1"

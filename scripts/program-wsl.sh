@@ -18,7 +18,11 @@ case "${1:-build}" in
     cp "$CARGO_TARGET_DIR/deploy/treasury_runway.so" target/deploy/
     ;;
   test)
-    cargo test --manifest-path programs/treasury-runway/Cargo.toml
+    # Instruction tests run the real .so in mollusk, so the build always precedes
+    # them: otherwise a green test could describe the previous version of the program.
+    # SBF_OUT_DIR is needed because cargo test works from the crate folder, not the repository.
+    "$0" build
+    SBF_OUT_DIR="$PWD/target/deploy"       cargo test --manifest-path programs/treasury-runway/Cargo.toml
     ;;
   *)
     echo "unknown command: ${1:-}" >&2
