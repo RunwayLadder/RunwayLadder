@@ -28,6 +28,9 @@ pub enum LadderError {
     #[msg("Only the ladder owner can perform this operation")]
     NotLadderOwner,
 
+    #[msg("Only the market operator can create epochs")]
+    NotMarketAuthority,
+
     #[msg("Not enough liquidity for an early exit — the position was left untouched")]
     InsufficientExitLiquidity,
 
