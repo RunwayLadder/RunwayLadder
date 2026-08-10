@@ -4,23 +4,26 @@ use anchor_spl::token::{Mint, Token, TokenAccount};
 use crate::errors::LadderError;
 use crate::math::BPS_DENOMINATOR;
 
-/// Which base yield source serves the market. Here only *which* one it is —
-/// the behaviour (`deposit` / `withdraw` / `accrued`) lives behind the adapter boundary
-/// in `source/`, and the ladder core does not know it.
+/// Which base yield source serves the market and with what parameters.
+/// The behaviour lives behind the adapter boundary in `source/`, and the ladder core does not know it.
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, Debug, InitSpace)]
 pub enum YieldSource {
     /// The rate is given as a parameter: reproducible runs and devnet, where third-party
     /// protocols do not exist at all.
-    Deterministic,
+    Deterministic { rate_bps: u16 },
 }
 
 impl YieldSource {
     /// Part of the market seeds: one asset served by different sources is
-    /// different markets, not one market with a switch. Otherwise changing the source
+    /// different markets, not one market with a switch, otherwise changing the source
     /// would silently redefine the terms of already issued rungs.
+    ///
+    /// The **kind** of source goes into the seeds, not its parameters: a market with a different
+    /// base rate is the same market. Otherwise every rate change would spawn
+    /// a separate vault, while the funds stayed in the previous one.
     pub fn seed(&self) -> [u8; 1] {
         match self {
-            YieldSource::Deterministic => [0],
+            YieldSource::Deterministic { .. } => [0],
         }
     }
 }

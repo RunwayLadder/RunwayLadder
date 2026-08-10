@@ -11,7 +11,7 @@ use common::{anchor_error, key, Env};
 
 #[test]
 fn creates_a_market_with_its_own_vault_and_buffer() {
-    let env = Env::new(YieldSource::Deterministic);
+    let env = Env::new(YieldSource::Deterministic { rate_bps: 600 });
 
     let result = env.mollusk.process_and_validate_instruction(
         &env.init_market(25),
@@ -25,7 +25,7 @@ fn creates_a_market_with_its_own_vault_and_buffer() {
     assert_eq!(market.authority, env.authority);
     assert_eq!(market.asset_mint, env.asset_mint);
     assert_eq!(market.fee_bps, 25);
-    assert_eq!(market.source, YieldSource::Deterministic);
+    assert_eq!(market.source, YieldSource::Deterministic { rate_bps: 600 });
     assert_eq!(market.vault, env.vault);
     assert_eq!(market.buffer_vault, env.buffer_vault);
 
@@ -47,7 +47,7 @@ fn creates_a_market_with_its_own_vault_and_buffer() {
 
 #[test]
 fn rejects_a_fee_above_the_whole_amount() {
-    let env = Env::new(YieldSource::Deterministic);
+    let env = Env::new(YieldSource::Deterministic { rate_bps: 600 });
 
     env.mollusk.process_and_validate_instruction(
         &env.init_market(10_001),

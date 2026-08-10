@@ -11,7 +11,7 @@ use common::{anchor_error, key, Env, FUNDED, NOW};
 const DAY: i64 = 86_400;
 
 fn env_with_epoch(maturity_ts: i64) -> (Env, Pubkey) {
-    let mut env = Env::new(YieldSource::Deterministic);
+    let mut env = Env::new(YieldSource::Deterministic { rate_bps: 600 });
     let epoch = env.epoch(maturity_ts);
     env.expect_created(epoch);
     (env, epoch)
