@@ -1,0 +1,426 @@
+{
+  "address": "HShAvvN6icFTUAs2hiKTHr7nGomyrcKz66wPB6CNhewe",
+  "metadata": {
+    "name": "treasury_runway",
+    "version": "0.1.0",
+    "spec": "0.1.0",
+    "description": "Fixed-yield ladder for on-chain treasuries"
+  },
+  "instructions": [
+    {
+      "name": "create_epoch",
+      "discriminator": [
+        115,
+        111,
+        36,
+        230,
+        59,
+        145,
+        168,
+        27
+      ],
+      "accounts": [
+        {
+          "name": "authority",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "market"
+          ]
+        },
+        {
+          "name": "market"
+        },
+        {
+          "name": "epoch",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  101,
+                  112,
+                  111,
+                  99,
+                  104
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market"
+              },
+              {
+                "kind": "arg",
+                "path": "maturity_ts"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "maturity_ts",
+          "type": "i64"
+        },
+        {
+          "name": "rate_bps",
+          "type": "u16"
+        }
+      ]
+    },
+    {
+      "name": "init_market",
+      "discriminator": [
+        33,
+        253,
+        15,
+        116,
+        89,
+        25,
+        127,
+        236
+      ],
+      "accounts": [
+        {
+          "name": "authority",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "asset_mint",
+          "docs": [
+            "The market's asset is a parameter, not a constant: no logic relies on",
+            "a specific mint or number of decimals (FR-001)."
+          ]
+        },
+        {
+          "name": "market",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  97,
+                  114,
+                  107,
+                  101,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "asset_mint"
+              },
+              {
+                "kind": "arg",
+                "path": "source"
+              }
+            ]
+          }
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market"
+              }
+            ]
+          }
+        },
+        {
+          "name": "buffer_vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  98,
+                  117,
+                  102,
+                  102,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market"
+              }
+            ]
+          }
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "source",
+          "type": {
+            "defined": {
+              "name": "YieldSource"
+            }
+          }
+        },
+        {
+          "name": "fee_bps",
+          "type": "u16"
+        }
+      ]
+    }
+  ],
+  "accounts": [
+    {
+      "name": "Epoch",
+      "discriminator": [
+        93,
+        83,
+        120,
+        89,
+        151,
+        138,
+        152,
+        108
+      ]
+    },
+    {
+      "name": "Market",
+      "discriminator": [
+        219,
+        190,
+        213,
+        55,
+        0,
+        227,
+        198,
+        154
+      ]
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "RungBelowMinimum",
+      "msg": "Rung is below the minimum position size — reduce the number of rungs or increase the amount"
+    },
+    {
+      "code": 6001,
+      "name": "InvalidFeeBps",
+      "msg": "Fee rate cannot exceed 100%"
+    },
+    {
+      "code": 6002,
+      "name": "InvalidMaturity",
+      "msg": "Maturity date must be in the future"
+    },
+    {
+      "code": 6003,
+      "name": "RateAlreadyLocked",
+      "msg": "Epoch rate is already locked — it is not revised after the first rung is issued"
+    },
+    {
+      "code": 6004,
+      "name": "EpochNotMatured",
+      "msg": "Epoch has not reached its maturity date yet"
+    },
+    {
+      "code": 6005,
+      "name": "EpochAlreadySettled",
+      "msg": "Epoch has already been settled"
+    },
+    {
+      "code": 6006,
+      "name": "EpochNotSettled",
+      "msg": "Epoch has not been settled yet — redemption becomes available after settlement"
+    },
+    {
+      "code": 6007,
+      "name": "NotLadderOwner",
+      "msg": "Only the ladder owner can perform this operation"
+    },
+    {
+      "code": 6008,
+      "name": "NotMarketAuthority",
+      "msg": "Only the market operator can create epochs"
+    },
+    {
+      "code": 6009,
+      "name": "InsufficientExitLiquidity",
+      "msg": "Not enough liquidity for an early exit — the position was left untouched"
+    },
+    {
+      "code": 6010,
+      "name": "RungNotActive",
+      "msg": "Rung has already been redeemed"
+    },
+    {
+      "code": 6011,
+      "name": "RollPolicyDisabled",
+      "msg": "Rolling is disabled for this ladder"
+    },
+    {
+      "code": 6012,
+      "name": "MathOverflow",
+      "msg": "Overflow in amount calculation"
+    }
+  ],
+  "types": [
+    {
+      "name": "Epoch",
+      "docs": [
+        "A maturity epoch: one date and one rate for everyone who enters it.",
+        "",
+        "The rate has no instruction that overwrites it — none. The invariant \"a promise cannot",
+        "change after issuance\" is held by the absence of a path, not by checking a flag:",
+        "to change the terms one would have to create another epoch, while rungs stay",
+        "bound to their own."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "market",
+            "type": "pubkey"
+          },
+          {
+            "name": "maturity_ts",
+            "type": "i64"
+          },
+          {
+            "name": "rate_bps",
+            "type": "u16"
+          },
+          {
+            "name": "created_by",
+            "docs": [
+              "FR-010a: the operator is a conscious point of trust, so exactly who set",
+              "the rate and when lives in the account, not only in the transaction logs."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "created_at",
+            "type": "i64"
+          },
+          {
+            "name": "total_deposited",
+            "docs": [
+              "The amount that actually went to work across the whole epoch (after fees)."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "total_promised",
+            "docs": [
+              "The sum of promises across the whole epoch. Together with the funds available on the",
+              "maturity date it gives the payout ratio — one per epoch, not per rung."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Market",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "authority",
+            "docs": [
+              "The operator: creates epochs and sets their rate. A conscious point of trust — see",
+              "`docs/SPEC.md`, FR-010a: who set the rate and when is visible to the treasurer."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "asset_mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "vault",
+            "docs": [
+              "The vault for treasury deposits."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "buffer_vault",
+            "docs": [
+              "The protocol buffer: filled by fees and standing as the second step of the",
+              "waterfall when the yield falls short (FR-011, FR-023)."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "source",
+            "type": {
+              "defined": {
+                "name": "YieldSource"
+              }
+            }
+          },
+          {
+            "name": "fee_bps",
+            "type": "u16"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "YieldSource",
+      "docs": [
+        "Which base yield source serves the market and with what parameters.",
+        "The behaviour lives behind the adapter boundary in `source/`, and the ladder core does not know it."
+      ],
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Deterministic",
+            "fields": [
+              {
+                "name": "rate_bps",
+                "type": "u16"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

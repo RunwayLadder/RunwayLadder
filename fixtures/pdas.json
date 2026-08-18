@@ -1,0 +1,23 @@
+{
+  "note": "Addresses derived by the SDK. The Rust test checks them against its own seeds: a discrepancy would mean the client looks for the account somewhere other than where the program creates it — and it would look like \"account not found\" rather than an error.",
+  "program_id": "HShAvvN6icFTUAs2hiKTHr7nGomyrcKz66wPB6CNhewe",
+  "asset_mint": "8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR",
+  "source": "deterministic",
+  "market": "77B3e5ybjnHjqPXEYgDp2eFHN3RAMGywUM1QWkspD3dH",
+  "vault": "GYeGarzrisEvJn8iyscCBqHgQp8UdgXC3CASBtZ3qnGk",
+  "buffer_vault": "9RUUDhhbSmBCEs3cLpQEhN3tMQKsAmGohRHnT4Fkd1Dn",
+  "epochs": [
+    {
+      "maturity_ts": 1800000000,
+      "address": "657ns3AmopPyHNGLmADGy6cVVhVoRTua699bfuDfLeH8"
+    },
+    {
+      "maturity_ts": 1807776000,
+      "address": "34W9q8dUidEjWLjtWiQWNsK318qfgt4bU1ombsAMRzyM"
+    },
+    {
+      "maturity_ts": -86400,
+      "address": "F4TtAWFYEszadjza2kwgMBNLhmETZ5TDhUw7CwuE1KDy"
+    }
+  ]
+}

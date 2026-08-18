@@ -1,0 +1,24 @@
+{
+  "note": "Reference accounts, encoded independently of both implementations. Rust checks its serialisation against them, TypeScript its decoding. A discrepancy means the dashboard reads something other than what the program writes.",
+  "market": {
+    "base64": "277VNwDjxpoBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBABYAhkA/g==",
+    "authority": "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+    "asset_mint": "8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR",
+    "vault": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+    "buffer_vault": "GgBaCs3NCBuZN12kCJgAW63ydqohFkHEdfdEXBPzLHq",
+    "source_rate_bps": 600,
+    "fee_bps": 25,
+    "bump": 254
+  },
+  "epoch": {
+    "base64": "XVN4WZeKmGwFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQDSSWsAAAAAIAMGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgDxU2UAAAAAYKR0OwAAAACI4qA8AAAAAP0=",
+    "market": "LbUiWL3xVV8hTFYBVdbTNrpDo41NKS6o3LHHuDzjfcY",
+    "maturity_ts": 1800000000,
+    "rate_bps": 800,
+    "created_by": "QWmroo4YnnMqYW3cnxWkFdaTxGD3P7vMSzwMHGbUzwF",
+    "created_at": 1700000000,
+    "total_deposited": 997500000,
+    "total_promised": 1017176712,
+    "bump": 253
+  }
+}

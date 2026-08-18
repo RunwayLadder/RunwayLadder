@@ -14,8 +14,11 @@ cd "$(dirname "$0")/.."
 case "${1:-build}" in
   build)
     anchor build
-    mkdir -p target/deploy
+    mkdir -p target/deploy packages/sdk/src/idl
     cp "$CARGO_TARGET_DIR/deploy/treasury_runway.so" target/deploy/
+    # The IDL goes into the SDK because target/ is outside the index. Otherwise TypeScript
+    # would get a third, hand-written copy of the account layout — and it would drift silently.
+    cp target/idl/treasury_runway.json packages/sdk/src/idl/
     ;;
   test)
     # Instruction tests run the real .so in mollusk, so the build always precedes
