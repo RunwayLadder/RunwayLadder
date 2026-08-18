@@ -1,0 +1,302 @@
+/**
+ * TreasuryRunway — static prototype data.
+ *
+ * Every figure in this file is rendered verbatim by the UI. Amounts are stored
+ * as pre-formatted strings so nothing is recomputed in JavaScript floats.
+ * Numeric mirrors exist only where a chart needs a bar height.
+ *
+ * No network calls, no chain reads. This file is the only source of truth.
+ */
+
+export type RungStatus = 'Active' | 'Redeemed' | 'Redeemed with deficit' | 'Exited'
+
+export type YieldSource = 'Deterministic Adapter · demo' | 'Stablecoin Lending Adapter'
+
+export interface Rung {
+  index: number
+  id: string
+  term: string
+  termDays: number
+  maturity: string
+  fixedRate: string
+  deposited: string
+  fee: string
+  working: string
+  guaranteed: string
+  status: RungStatus
+  countdown: string
+  /** Present only when the rung settled below the guaranteed figure. */
+  settlement?: {
+    settled: string
+    shortfall: string
+    payoutRatio: string
+    note: string
+  }
+}
+
+export interface ActivityRow {
+  timestamp: string
+  label: string
+  amount: string
+  signature: string
+}
+
+export const PROTOTYPE_NOTICE = 'Prototype — mock data. Not connected to any network.'
+
+export const MINIMUM_POSITION_SIZE = 10000
+export const MINIMUM_POSITION_SIZE_LABEL = '10,000.00'
+
+export const treasury = {
+  name: 'Northwind Foundation',
+  owner: 'Treasury Safe (3-of-5 multisig)',
+  address: '7xKQ…vT4m',
+  network: 'Solana',
+  asset: 'USDC',
+  totalBalance: '1,400,000.00',
+  laddered: '1,000,000.00',
+  floating: '400,000.00',
+  floatingRate: '4.80%',
+} as const
+
+export const ladder = {
+  id: 'LDR-0142',
+  opened: '2026-08-20',
+  asset: 'USDC',
+  feeRate: '0.25%',
+  feeBps: '25 bps',
+  rungCount: 4,
+  distribution: 'Even',
+  rollPolicy: false,
+  horizonDays: 180,
+  /**
+   * FR-009b: the source is fixed when the ladder is created and is the same for all its
+   * rungs. That is why it lives here and not in `Rung` — a rung with its own source
+   * must be unrepresentable, not merely undesirable.
+   */
+  yieldSource: 'Deterministic Adapter · demo' satisfies YieldSource,
+} as const
+
+export const epoch = {
+  operator: 'Epoch operator · 9fRe…Lq2b',
+  ratesSetAt: '2026-08-18 09:14 UTC',
+  fixedNote: 'Rate is fixed at issuance and is never revised before maturity.',
+} as const
+
+/**
+ * A tuple, not an array: there are exactly four rungs, and `rungs[0]` here is a constant, not
+ * an assumption. Otherwise `noUncheckedIndexedAccess` would demand an undefined check
+ * in a place where it cannot happen.
+ */
+export const rungs: [Rung, Rung, Rung, Rung] = [
+  {
+    index: 1,
+    id: 'LDR-0142-R1',
+    term: '30 d',
+    termDays: 30,
+    maturity: '2026-09-19',
+    fixedRate: '4.80%',
+    deposited: '250,000.00',
+    fee: '625.00',
+    working: '249,375.00',
+    guaranteed: '250,358.83',
+    status: 'Active',
+    countdown: '30 days to maturity',
+  },
+  {
+    index: 2,
+    id: 'LDR-0142-R2',
+    term: '60 d',
+    termDays: 60,
+    maturity: '2026-10-19',
+    fixedRate: '5.20%',
+    deposited: '250,000.00',
+    fee: '625.00',
+    working: '249,375.00',
+    guaranteed: '251,506.64',
+    status: 'Active',
+    countdown: '60 days to maturity',
+  },
+  {
+    index: 3,
+    id: 'LDR-0142-R3',
+    term: '90 d',
+    termDays: 90,
+    maturity: '2026-11-18',
+    fixedRate: '5.60%',
+    deposited: '250,000.00',
+    fee: '625.00',
+    working: '249,375.00',
+    guaranteed: '252,818.42',
+    status: 'Active',
+    countdown: '90 days to maturity',
+  },
+  {
+    index: 4,
+    id: 'LDR-0142-R4',
+    term: '180 d',
+    termDays: 180,
+    maturity: '2027-02-16',
+    fixedRate: '6.20%',
+    deposited: '250,000.00',
+    fee: '625.00',
+    working: '249,375.00',
+    guaranteed: '256,999.72',
+    status: 'Active',
+    countdown: '180 days to maturity',
+  },
+]
+
+/** Rung 2 shown as a settled-short record. Preview state only. */
+export const rungTwoWithDeficit: Rung = {
+  ...rungs[1],
+  status: 'Redeemed with deficit',
+  countdown: 'Matured 2026-10-19',
+  settlement: {
+    settled: '250,047.90',
+    shortfall: '1,458.73',
+    payoutRatio: '99.42%',
+    note: 'Base yield fell short. Yield-holder income and the protocol buffer were applied first; the remainder was settled pro rata across the epoch.',
+  },
+}
+
+export const ladderTotals = {
+  deposited: '1,000,000.00',
+  fee: '2,500.00',
+  working: '997,500.00',
+  guaranteed: '1,011,683.63',
+  netGain: '11,683.63',
+  blendedNetRate: '4.74%',
+} as const
+
+export const nextInflow = {
+  amount: '250,358.83',
+  date: '2026-09-19',
+} as const
+
+export interface InflowMonth {
+  month: string
+  guaranteed: number
+  floating: number
+  guaranteedLabel: string
+  floatingLabel: string
+}
+
+export const inflowSchedule: InflowMonth[] = [
+  {
+    month: 'Sep 2026',
+    guaranteed: 250358.83,
+    floating: 1600,
+    guaranteedLabel: '250,358.83',
+    floatingLabel: '1,600.00',
+  },
+  {
+    month: 'Oct 2026',
+    guaranteed: 251506.64,
+    floating: 1600,
+    guaranteedLabel: '251,506.64',
+    floatingLabel: '1,600.00',
+  },
+  {
+    month: 'Nov 2026',
+    guaranteed: 252818.42,
+    floating: 1600,
+    guaranteedLabel: '252,818.42',
+    floatingLabel: '1,600.00',
+  },
+  {
+    month: 'Dec 2026',
+    guaranteed: 0,
+    floating: 1600,
+    guaranteedLabel: '0.00',
+    floatingLabel: '1,600.00',
+  },
+  {
+    month: 'Jan 2027',
+    guaranteed: 0,
+    floating: 1600,
+    guaranteedLabel: '0.00',
+    floatingLabel: '1,600.00',
+  },
+  {
+    month: 'Feb 2027',
+    guaranteed: 256999.72,
+    floating: 1600,
+    guaranteedLabel: '256,999.72',
+    floatingLabel: '1,600.00',
+  },
+  {
+    month: 'Mar 2027',
+    guaranteed: 0,
+    floating: 1600,
+    guaranteedLabel: '0.00',
+    floatingLabel: '1,600.00',
+  },
+  {
+    month: 'Apr 2027',
+    guaranteed: 0,
+    floating: 1600,
+    guaranteedLabel: '0.00',
+    floatingLabel: '1,600.00',
+  },
+  {
+    month: 'May 2027',
+    guaranteed: 0,
+    floating: 1600,
+    guaranteedLabel: '0.00',
+    floatingLabel: '1,600.00',
+  },
+  {
+    month: 'Jun 2027',
+    guaranteed: 0,
+    floating: 1600,
+    guaranteedLabel: '0.00',
+    floatingLabel: '1,600.00',
+  },
+  {
+    month: 'Jul 2027',
+    guaranteed: 0,
+    floating: 1600,
+    guaranteedLabel: '0.00',
+    floatingLabel: '1,600.00',
+  },
+  {
+    month: 'Aug 2027',
+    guaranteed: 0,
+    floating: 1600,
+    guaranteedLabel: '0.00',
+    floatingLabel: '1,600.00',
+  },
+]
+
+export const INFLOW_CAPTION = 'Roll policy is off — no guaranteed inflows after Feb 2027.'
+
+export const rollPolicyCopy = {
+  off: 'Off — matured funds return to the treasury wallet.',
+  on: 'On — matured funds open a new rung at the end of the horizon.',
+} as const
+
+export const activityLog: ActivityRow[] = [
+  {
+    timestamp: '2026-08-20 12:04 UTC',
+    label: 'Rung issued',
+    amount: '250,000.00',
+    signature: '4Zt9pQ…mR3vXb',
+  },
+  {
+    timestamp: '2026-08-20 12:04 UTC',
+    label: 'Fee to protocol buffer',
+    amount: '625.00',
+    signature: '2Hs7kA…wL8dNc',
+  },
+]
+
+/** Canonical build-ladder form defaults. */
+export const builderDefaults = {
+  amount: '1000000',
+  availableLabel: '1,400,000.00',
+  horizonDays: 180,
+  rungs: 4,
+  distribution: 'Even' as 'Even' | 'Custom weights',
+  weights: ['25', '25', '25', '25'] as [string, string, string, string],
+  rollPolicy: false,
+}

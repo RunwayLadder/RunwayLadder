@@ -22,7 +22,11 @@
     "rules": {
       "preset": "recommended",
       "suspicious": {
-        "noExplicitAny": "error"
+        "noExplicitAny": "error",
+        "noUnknownAtRules": {
+          "level": "error",
+          "options": { "ignore": ["tailwind"] }
+        }
       },
       "complexity": {
         "noExcessiveCognitiveComplexity": "warn"
@@ -34,6 +38,11 @@
       "quoteStyle": "single",
       "semicolons": "asNeeded",
       "trailingCommas": "all"
+    }
+  },
+  "css": {
+    "parser": {
+      "tailwindDirectives": true
     }
   }
 }

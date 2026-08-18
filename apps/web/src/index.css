@@ -1,0 +1,105 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * TreasuryRunway design tokens. Dark theme only, all colours HSL.
+ * Every variable here is used somewhere — template tokens that no line
+ * referenced were removed during the port (T019).
+ */
+
+@layer base {
+  :root,
+  .dark {
+    --background: 220 16% 6%;
+    --foreground: 210 14% 92%;
+
+    --card: 220 15% 9%;
+
+    --primary: 205 55% 58%;
+    --primary-foreground: 220 30% 8%;
+
+    --muted: 220 12% 13%;
+    --muted-foreground: 215 10% 58%;
+
+    --border: 220 10% 17%;
+    --input: 220 10% 17%;
+    --ring: 205 55% 58%;
+
+    --radius: 0.25rem;
+
+    --surface-raised: 220 14% 11%;
+    --grid-line: 220 10% 15%;
+    --series-guaranteed: 205 52% 52%;
+    --series-floating: 215 10% 42%;
+    --caution: 36 55% 58%;
+
+    --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+    --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, monospace;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    color-scheme: dark;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  table {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+@layer components {
+  .num {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums lining-nums;
+    letter-spacing: -0.01em;
+  }
+
+  .label-caps {
+    font-size: 0.6875rem;
+    line-height: 1rem;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: hsl(var(--muted-foreground));
+  }
+
+  .panel {
+    background-color: hsl(var(--card));
+    border: 1px solid hsl(var(--border));
+    border-radius: var(--radius);
+  }
+
+  .field {
+    width: 100%;
+    background-color: hsl(var(--background));
+    border: 1px solid hsl(var(--input));
+    border-radius: var(--radius);
+    padding: 0.5rem 0.625rem;
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    font-size: 0.875rem;
+    color: hsl(var(--foreground));
+    outline: none;
+  }
+
+  .field:focus-visible {
+    border-color: hsl(var(--ring));
+    box-shadow: 0 0 0 1px hsl(var(--ring) / 0.5);
+  }
+}
+
+:focus-visible {
+  outline: 1px solid hsl(var(--ring));
+  outline-offset: 1px;
+}
