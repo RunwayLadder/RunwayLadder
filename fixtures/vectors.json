@@ -114,5 +114,94 @@
         "promised": "1"
       }
     ]
+  },
+  "split": {
+    "formula": "even: base = total / rungs, remainder = total % rungs, the first `remainder` rungs get base + 1. weighted: part_i = total * weights_bps[i] / bps_denominator (rounded down), then the remainder total - sum(parts) is handed out one unit at a time, also starting from the first rung.",
+    "invariant": "sum(parts) == total for any input. The remainder is neither dropped nor duplicated: otherwise the ladder would promise a different amount from the one it accepted.",
+    "remainder_goes_to": "the first rungs, one unit each. The choice is arbitrary but must be the same in Rust and TS — which is why it is fixed here rather than in a comment of one of the implementations. The difference between rungs never exceeds one unit.",
+    "even_is_not_sugar_over_weights": "the even split is a separate mode, not weights [10000/n, ...]: for n that does not divide 10000 (3, 6, 7) such integer weights do not exist, and a round-trip through bps would not give an even split.",
+    "even_cases": [
+      {
+        "name": "four-way-exact",
+        "total": "1000000000000",
+        "rungs": 4,
+        "parts": ["250000000000", "250000000000", "250000000000", "250000000000"]
+      },
+      {
+        "name": "remainder-to-the-front",
+        "total": "1000",
+        "rungs": 3,
+        "parts": ["334", "333", "333"]
+      },
+      {
+        "name": "single-rung",
+        "total": "999",
+        "rungs": 1,
+        "parts": ["999"]
+      },
+      {
+        "name": "zero-total",
+        "total": "0",
+        "rungs": 4,
+        "parts": ["0", "0", "0", "0"]
+      },
+      {
+        "name": "dust-below-rung-count",
+        "total": "3",
+        "rungs": 4,
+        "parts": ["1", "1", "1", "0"]
+      },
+      {
+        "name": "treasury-scale",
+        "total": "1000000000000000",
+        "rungs": 6,
+        "parts": [
+          "166666666666667",
+          "166666666666667",
+          "166666666666667",
+          "166666666666667",
+          "166666666666666",
+          "166666666666666"
+        ]
+      }
+    ],
+    "weighted_cases": [
+      {
+        "name": "equal-weights-match-even",
+        "total": "1000000000000",
+        "weights_bps": [2500, 2500, 2500, 2500],
+        "parts": ["250000000000", "250000000000", "250000000000", "250000000000"]
+      },
+      {
+        "name": "front-loaded",
+        "total": "1000000000000",
+        "weights_bps": [4000, 3000, 2000, 1000],
+        "parts": ["400000000000", "300000000000", "200000000000", "100000000000"]
+      },
+      {
+        "name": "weights-that-do-not-divide",
+        "total": "1000",
+        "weights_bps": [3333, 3333, 3334],
+        "parts": ["334", "333", "333"]
+      },
+      {
+        "name": "two-rungs-odd-total",
+        "total": "999",
+        "weights_bps": [5000, 5000],
+        "parts": ["500", "499"]
+      },
+      {
+        "name": "treasury-scale",
+        "total": "1000000000000000",
+        "weights_bps": [1000, 2000, 3000, 4000],
+        "parts": ["100000000000000", "200000000000000", "300000000000000", "400000000000000"]
+      },
+      {
+        "name": "one-rung-whole-weight",
+        "total": "12345",
+        "weights_bps": [10000],
+        "parts": ["12345"]
+      }
+    ]
   }
 }
