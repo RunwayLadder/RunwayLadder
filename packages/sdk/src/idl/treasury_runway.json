@@ -193,6 +193,84 @@
           "type": "u16"
         }
       ]
+    },
+    {
+      "name": "open_ladder",
+      "discriminator": [
+        31,
+        176,
+        2,
+        204,
+        72,
+        152,
+        86,
+        30
+      ],
+      "accounts": [
+        {
+          "name": "owner",
+          "docs": [
+            "`Signer` checks exactly one thing — that the account signed the instruction. It does not",
+            "require the account to be owned by the system program, which is precisely why a multisig",
+            "safe signing through CPI is not a special case here (FR-020a)."
+          ],
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "market"
+        },
+        {
+          "name": "ladder",
+          "docs": [
+            "The owner is part of the seeds, so the address space is divided between owners:",
+            "a foreign signer cannot create a ladder at someone else's address — not because",
+            "a check catches it, but because the address is not derived from their key."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  108,
+                  97,
+                  100,
+                  100,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              },
+              {
+                "kind": "arg",
+                "path": "seed"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "seed",
+          "type": "u64"
+        },
+        {
+          "name": "roll_policy",
+          "type": {
+            "defined": {
+              "name": "RollPolicy"
+            }
+          }
+        }
+      ]
     }
   ],
   "accounts": [
@@ -207,6 +285,19 @@
         138,
         152,
         108
+      ]
+    },
+    {
+      "name": "Ladder",
+      "discriminator": [
+        125,
+        146,
+        35,
+        254,
+        42,
+        7,
+        204,
+        222
       ]
     },
     {
@@ -351,6 +442,66 @@
       }
     },
     {
+      "name": "Ladder",
+      "docs": [
+        "A ladder: a set of rungs of one owner on one market.",
+        "",
+        "Ownership here is a `Pubkey` and nothing more. No field and no check",
+        "assumes a single private key stands behind this key: a multisig safe",
+        "takes the same path as an ordinary wallet (FR-020a)."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "owner",
+            "docs": [
+              "The only one who can initiate ladder operations (FR-020). A foreign wallet",
+              "reads the same accounts but has no path to change them."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "market",
+            "type": "pubkey"
+          },
+          {
+            "name": "seed",
+            "docs": [
+              "Distinguishes the ladders of one owner: a treasury keeps several —",
+              "for example, for different budget lines."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "rung_count",
+            "docs": [
+              "How many rungs the ladder has issued over its lifetime. A counter, not a plan:",
+              "rolling (FR-013) adds rungs after the deposit, so any number declared",
+              "up front would drift from reality on the very first crank."
+            ],
+            "type": "u32"
+          },
+          {
+            "name": "roll_policy",
+            "type": {
+              "defined": {
+                "name": "RollPolicy"
+              }
+            }
+          },
+          {
+            "name": "created_at",
+            "type": "i64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
       "name": "Market",
       "type": {
         "kind": "struct",
@@ -397,6 +548,26 @@
           {
             "name": "bump",
             "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "RollPolicy",
+      "docs": [
+        "What happens to the rung's funds once it is redeemed.",
+        "",
+        "The names come from `docs/PLAN.md` (\"Flow: what happens on deposit\"), where the policy",
+        "is referred to as `policy=Roll` and `policy=None`."
+      ],
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "None"
+          },
+          {
+            "name": "Roll"
           }
         ]
       }

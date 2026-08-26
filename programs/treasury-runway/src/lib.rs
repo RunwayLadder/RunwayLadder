@@ -20,4 +20,8 @@ pub mod treasury_runway {
     pub fn create_epoch(ctx: Context<CreateEpoch>, maturity_ts: i64, rate_bps: u16) -> Result<()> {
         state::create_epoch(ctx, maturity_ts, rate_bps)
     }
+
+    pub fn open_ladder(ctx: Context<OpenLadder>, seed: u64, roll_policy: RollPolicy) -> Result<()> {
+        state::open_ladder(ctx, seed, roll_policy)
+    }
 }
