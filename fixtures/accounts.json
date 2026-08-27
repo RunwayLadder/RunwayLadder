@@ -1,13 +1,14 @@
 {
   "note": "Reference accounts, encoded independently of both implementations. Rust checks its serialisation against them, TypeScript its decoding. A discrepancy means the dashboard reads something other than what the program writes.",
   "market": {
-    "base64": "277VNwDjxpoBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBABYAhkA/g==",
+    "base64": "277VNwDjxpoBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBABYAhkAAOH1BQAAAAD+",
     "authority": "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
     "asset_mint": "8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR",
     "vault": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
     "buffer_vault": "GgBaCs3NCBuZN12kCJgAW63ydqohFkHEdfdEXBPzLHq",
     "source_rate_bps": 600,
     "fee_bps": 25,
+    "min_rung_amount": 100000000,
     "bump": 254
   },
   "epoch": {

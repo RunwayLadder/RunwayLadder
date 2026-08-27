@@ -39,6 +39,7 @@ const marketSchema = z
     buffer_vault: publicKey,
     source: z.object({ Deterministic: z.object({ rate_bps: rate }) }),
     fee_bps: bps,
+    min_rung_amount: u64,
     bump,
   })
   .transform((m) => ({
@@ -48,6 +49,7 @@ const marketSchema = z
     bufferVault: m.buffer_vault,
     source: { kind: 'deterministic' as const, rateBps: m.source.Deterministic.rate_bps },
     feeBps: m.fee_bps,
+    minRungAmount: m.min_rung_amount,
     bump: m.bump,
   }))
 

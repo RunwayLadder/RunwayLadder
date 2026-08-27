@@ -53,6 +53,93 @@ pub fn promise(working: u64, rate_bps: u16, seconds: i64) -> Result<u64> {
     working.checked_add(accrued).ok_or(LadderError::MathOverflow.into())
 }
 
+/// How the treasurer divides the amount between rungs.
+///
+/// A mirror of `Distribution` from `packages/math/src/ladder.ts`, and the even
+/// split is just as much a separate variant here, not sugar over the weights
+/// `[10000 / n, ...]`: for `n` that does not divide 10000 (3, 6, 7) such integer weights
+/// do not exist, and a round-trip through bps would give a split that is called even
+/// but is not. The dashboard shows the treasurer the preview with exactly that code, so a
+/// discrepancy here is a different amount on screen and on chain.
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, PartialEq, Eq, Debug)]
+pub enum Distribution {
+    Even { rungs: u8 },
+    Weighted { weights_bps: Vec<u16> },
+}
+
+impl Distribution {
+    pub fn rungs(&self) -> usize {
+        match self {
+            Distribution::Even { rungs } => usize::from(*rungs),
+            Distribution::Weighted { weights_bps } => weights_bps.len(),
+        }
+    }
+}
+
+/// Splitting the ladder amount across rungs.
+///
+/// Invariant: `sum(parts) == total` for any input. The division remainder is neither
+/// dropped nor duplicated — the ladder has no right to promise an amount other than the one
+/// it accepted. It is handed out one unit at a time from the first rung; the choice is arbitrary
+/// but fixed in `fixtures/vectors.json`, because the same layout is computed
+/// twice — here and in TypeScript.
+///
+/// There is deliberately no minimum rung size here: it is a market parameter, not a
+/// property of the arithmetic. On a tiny amount the function honestly returns zeros, which is
+/// exactly why FR-006 checks the minimum **after** the split but **before** the debit.
+pub fn split(total: u64, distribution: &Distribution) -> Result<Vec<u64>> {
+    let mut parts = match distribution {
+        Distribution::Even { rungs } => {
+            let rungs = usize::from(*rungs);
+            require!(rungs >= 1, LadderError::InvalidDistribution);
+
+            vec![total / rungs as u64; rungs]
+        }
+        Distribution::Weighted { weights_bps } => {
+            require!(!weights_bps.is_empty(), LadderError::InvalidDistribution);
+
+            let mut sum: u128 = 0;
+            for weight in weights_bps {
+                // A rung without funds must not exist: a zero weight is
+                // a request to create an account that promises nothing and to pay
+                // rent for it.
+                require!(*weight > 0, LadderError::InvalidDistribution);
+                sum += u128::from(*weight);
+            }
+            // Weights must add up to the whole: normalisation would add a second rounding
+            // where the first one already costs units.
+            require!(sum == BPS_DENOMINATOR, LadderError::InvalidDistribution);
+
+            weights_bps
+                .iter()
+                .map(|weight| {
+                    let part = u128::from(total)
+                        .checked_mul(u128::from(*weight))
+                        .ok_or(LadderError::MathOverflow)?
+                        / BPS_DENOMINATOR;
+
+                    u64::try_from(part).map_err(|_| LadderError::MathOverflow.into())
+                })
+                .collect::<Result<Vec<u64>>>()?
+        }
+    };
+
+    // Each division rounds down and loses less than one unit, so the remainder is always smaller
+    // than the number of rungs and is handed out exactly one unit each.
+    let mut remainder = parts.iter().try_fold(total, |left, part| left.checked_sub(*part))
+        .ok_or(LadderError::MathOverflow)?;
+
+    for part in parts.iter_mut() {
+        if remainder == 0 {
+            break;
+        }
+        *part = part.checked_add(1).ok_or(LadderError::MathOverflow)?;
+        remainder -= 1;
+    }
+
+    Ok(parts)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -135,5 +222,89 @@ mod tests {
     #[test]
     fn promise_reports_overflow_instead_of_wrapping() {
         assert!(promise(u64::MAX, 10_000, 31_536_000).is_err());
+    }
+
+    #[test]
+    fn split_matches_the_shared_even_vectors() {
+        for case in vectors()["split"]["even_cases"].as_array().unwrap() {
+            let name = case["name"].as_str().unwrap();
+            let rungs = case["rungs"].as_u64().unwrap() as u8;
+            let parts = split(u64_field(case, "total"), &Distribution::Even { rungs })
+                .unwrap_or_else(|_| panic!("{name}"));
+
+            let expected: Vec<u64> = case["parts"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|p| p.as_str().unwrap().parse().unwrap())
+                .collect();
+
+            assert_eq!(parts, expected, "{name}");
+        }
+    }
+
+    #[test]
+    fn split_matches_the_shared_weighted_vectors() {
+        for case in vectors()["split"]["weighted_cases"].as_array().unwrap() {
+            let name = case["name"].as_str().unwrap();
+            let weights_bps: Vec<u16> = case["weights_bps"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|w| w.as_u64().unwrap() as u16)
+                .collect();
+
+            let parts = split(u64_field(case, "total"), &Distribution::Weighted { weights_bps })
+                .unwrap_or_else(|_| panic!("{name}"));
+
+            let expected: Vec<u64> = case["parts"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|p| p.as_str().unwrap().parse().unwrap())
+                .collect();
+
+            assert_eq!(parts, expected, "{name}");
+        }
+    }
+
+    #[test]
+    fn split_never_creates_or_loses_a_unit() {
+        for total in [0u64, 1, 3, 999, 1_000_000_000, 1_000_000_000_000_001] {
+            for rungs in 1u8..=12 {
+                let parts = split(total, &Distribution::Even { rungs }).unwrap();
+                assert_eq!(parts.iter().sum::<u64>(), total, "total={total} rungs={rungs}");
+                assert_eq!(parts.len(), usize::from(rungs));
+            }
+        }
+    }
+
+    #[test]
+    fn split_keeps_the_rungs_within_one_unit_of_each_other() {
+        // The even split stays as even as integers allow: otherwise
+        // "equal rungs" on screen would be unequal by
+        // more than a speck.
+        let parts = split(1_000_000_000_000_007, &Distribution::Even { rungs: 9 }).unwrap();
+        let max = parts.iter().max().unwrap();
+        let min = parts.iter().min().unwrap();
+
+        assert!(max - min <= 1, "{parts:?}");
+    }
+
+    #[test]
+    fn split_rejects_weights_that_do_not_add_up() {
+        assert!(split(1_000, &Distribution::Weighted { weights_bps: vec![5_000, 4_000] }).is_err());
+        assert!(split(1_000, &Distribution::Weighted { weights_bps: vec![6_000, 5_000] }).is_err());
+    }
+
+    #[test]
+    fn split_rejects_a_rung_with_no_weight() {
+        assert!(split(1_000, &Distribution::Weighted { weights_bps: vec![10_000, 0] }).is_err());
+    }
+
+    #[test]
+    fn split_rejects_a_ladder_without_rungs() {
+        assert!(split(1_000, &Distribution::Even { rungs: 0 }).is_err());
+        assert!(split(1_000, &Distribution::Weighted { weights_bps: vec![] }).is_err());
     }
 }

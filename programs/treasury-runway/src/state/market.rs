@@ -42,6 +42,14 @@ pub struct Market {
     pub buffer_vault: Pubkey,
     pub source: YieldSource,
     pub fee_bps: u16,
+    /// The minimum rung size in the asset's smallest units (FR-006).
+    ///
+    /// Lives on the market, not in the program and not in a deposit parameter: a constant
+    /// in base units means nothing without the mint's decimals (FR-001),
+    /// and a minimum the treasurer sets themselves protects against nothing. A meaningful
+    /// rung is one whose yield is not eaten by the network fee for redemption,
+    /// and the one who knows that is the market operator.
+    pub min_rung_amount: u64,
     pub bump: u8,
 }
 
@@ -88,7 +96,12 @@ pub struct InitMarket<'info> {
     pub system_program: Program<'info, System>,
 }
 
-pub fn init_market(ctx: Context<InitMarket>, source: YieldSource, fee_bps: u16) -> Result<()> {
+pub fn init_market(
+    ctx: Context<InitMarket>,
+    source: YieldSource,
+    fee_bps: u16,
+    min_rung_amount: u64,
+) -> Result<()> {
     require!(u128::from(fee_bps) <= BPS_DENOMINATOR, LadderError::InvalidFeeBps);
 
     let market = &mut ctx.accounts.market;
@@ -98,6 +111,7 @@ pub fn init_market(ctx: Context<InitMarket>, source: YieldSource, fee_bps: u16) 
     market.buffer_vault = ctx.accounts.buffer_vault.key();
     market.source = source;
     market.fee_bps = fee_bps;
+    market.min_rung_amount = min_rung_amount;
     market.bump = ctx.bumps.market;
 
     Ok(())

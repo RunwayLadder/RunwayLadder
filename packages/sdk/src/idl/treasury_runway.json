@@ -191,6 +191,87 @@
         {
           "name": "fee_bps",
           "type": "u16"
+        },
+        {
+          "name": "min_rung_amount",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "ladder_deposit",
+      "docs": [
+        "Rungs arrive in `remaining_accounts`, so the context lifetime is named",
+        "explicitly here: otherwise the borrowed accounts would not outlive the call."
+      ],
+      "discriminator": [
+        26,
+        140,
+        8,
+        99,
+        151,
+        62,
+        85,
+        246
+      ],
+      "accounts": [
+        {
+          "name": "owner",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "ladder"
+          ]
+        },
+        {
+          "name": "market",
+          "relations": [
+            "ladder"
+          ]
+        },
+        {
+          "name": "ladder",
+          "docs": [
+            "`has_one = owner` is FR-020 itself: a foreign wallet sees the ladder but",
+            "has no path to put funds into it. `has_one = market` is deliberately left on",
+            "Anchor's built-in error: a mismatch here means a broken",
+            "client, not a treasurer's decision, and it gets no wording of its own."
+          ],
+          "writable": true
+        },
+        {
+          "name": "vault",
+          "writable": true
+        },
+        {
+          "name": "source",
+          "docs": [
+            "The wallet the funds leave from. It must belong to the ladder owner —",
+            "otherwise the treasurer's signature would debit someone else's account."
+          ],
+          "writable": true
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        },
+        {
+          "name": "distribution",
+          "type": {
+            "defined": {
+              "name": "Distribution"
+            }
+          }
         }
       ]
     },
@@ -332,56 +413,114 @@
     },
     {
       "code": 6003,
+      "name": "EpochAlreadyMatured",
+      "msg": "This maturity date has already passed — funds cannot be placed in it, choose the next one"
+    },
+    {
+      "code": 6004,
+      "name": "InvalidDistribution",
+      "msg": "Deposit layout is invalid: weights must add up to 10000 bps, and there must be at least one rung"
+    },
+    {
+      "code": 6005,
+      "name": "RungAccountsMismatch",
+      "msg": "Account set does not match the deposit layout: every rung needs its epoch and the rung itself"
+    },
+    {
+      "code": 6006,
+      "name": "ZeroAmount",
+      "msg": "Deposit amount must be greater than zero"
+    },
+    {
+      "code": 6007,
       "name": "RateAlreadyLocked",
       "msg": "Epoch rate is already locked — it is not revised after the first rung is issued"
     },
     {
-      "code": 6004,
+      "code": 6008,
       "name": "EpochNotMatured",
       "msg": "Epoch has not reached its maturity date yet"
     },
     {
-      "code": 6005,
+      "code": 6009,
       "name": "EpochAlreadySettled",
       "msg": "Epoch has already been settled"
     },
     {
-      "code": 6006,
+      "code": 6010,
       "name": "EpochNotSettled",
       "msg": "Epoch has not been settled yet — redemption becomes available after settlement"
     },
     {
-      "code": 6007,
+      "code": 6011,
       "name": "NotLadderOwner",
       "msg": "Only the ladder owner can perform this operation"
     },
     {
-      "code": 6008,
+      "code": 6012,
       "name": "NotMarketAuthority",
       "msg": "Only the market operator can create epochs"
     },
     {
-      "code": 6009,
+      "code": 6013,
       "name": "InsufficientExitLiquidity",
       "msg": "Not enough liquidity for an early exit — the position was left untouched"
     },
     {
-      "code": 6010,
+      "code": 6014,
       "name": "RungNotActive",
       "msg": "Rung has already been redeemed"
     },
     {
-      "code": 6011,
+      "code": 6015,
       "name": "RollPolicyDisabled",
       "msg": "Rolling is disabled for this ladder"
     },
     {
-      "code": 6012,
+      "code": 6016,
       "name": "MathOverflow",
       "msg": "Overflow in amount calculation"
     }
   ],
   "types": [
+    {
+      "name": "Distribution",
+      "docs": [
+        "How the treasurer divides the amount between rungs.",
+        "",
+        "A mirror of `Distribution` from `packages/math/src/ladder.ts`, and the even",
+        "split is just as much a separate variant here, not sugar over the weights",
+        "`[10000 / n, ...]`: for `n` that does not divide 10000 (3, 6, 7) such integer weights",
+        "do not exist, and a round-trip through bps would give a split that is called even",
+        "but is not. The dashboard shows the treasurer the preview with exactly that code, so a",
+        "discrepancy here is a different amount on screen and on chain."
+      ],
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Even",
+            "fields": [
+              {
+                "name": "rungs",
+                "type": "u8"
+              }
+            ]
+          },
+          {
+            "name": "Weighted",
+            "fields": [
+              {
+                "name": "weights_bps",
+                "type": {
+                  "vec": "u16"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
     {
       "name": "Epoch",
       "docs": [
@@ -544,6 +683,19 @@
           {
             "name": "fee_bps",
             "type": "u16"
+          },
+          {
+            "name": "min_rung_amount",
+            "docs": [
+              "The minimum rung size in the asset's smallest units (FR-006).",
+              "",
+              "Lives on the market, not in the program and not in a deposit parameter: a constant",
+              "in base units means nothing without the mint's decimals (FR-001),",
+              "and a minimum the treasurer sets themselves protects against nothing. A meaningful",
+              "rung is one whose yield is not eaten by the network fee for redemption,",
+              "and the one who knows that is the market operator."
+            ],
+            "type": "u64"
           },
           {
             "name": "bump",

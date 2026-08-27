@@ -13,6 +13,18 @@ pub enum LadderError {
     #[msg("Maturity date must be in the future")]
     InvalidMaturity,
 
+    #[msg("This maturity date has already passed — funds cannot be placed in it, choose the next one")]
+    EpochAlreadyMatured,
+
+    #[msg("Deposit layout is invalid: weights must add up to 10000 bps, and there must be at least one rung")]
+    InvalidDistribution,
+
+    #[msg("Account set does not match the deposit layout: every rung needs its epoch and the rung itself")]
+    RungAccountsMismatch,
+
+    #[msg("Deposit amount must be greater than zero")]
+    ZeroAmount,
+
     #[msg("Epoch rate is already locked — it is not revised after the first rung is issued")]
     RateAlreadyLocked,
 

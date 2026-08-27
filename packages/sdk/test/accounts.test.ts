@@ -13,6 +13,7 @@ type Fixture = {
     buffer_vault: string
     source_rate_bps: number
     fee_bps: number
+    min_rung_amount: number
     bump: number
   }
   epoch: {
@@ -40,6 +41,9 @@ describe('decodeMarket', () => {
     expect(market.vault.toBase58()).toBe(fixture.market.vault)
     expect(market.bufferVault.toBase58()).toBe(fixture.market.buffer_vault)
     expect(market.feeBps).toBe(fixture.market.fee_bps)
+    // The rung minimum is a u64: on the treasurer's screen it sits next to the deposit
+    // amount, and a number here would start to differ from the chain on large assets.
+    expect(market.minRungAmount).toBe(BigInt(fixture.market.min_rung_amount))
     expect(market.bump).toBe(fixture.market.bump)
   })
 
