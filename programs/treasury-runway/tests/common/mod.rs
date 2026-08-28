@@ -361,6 +361,7 @@ impl Env {
             market: self.market,
             ladder,
             vault: self.vault,
+            buffer_vault: self.buffer_vault,
             source: source_token,
             token_program: spl_token::ID,
             system_program: anchor_lang::system_program::ID,

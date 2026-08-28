@@ -42,7 +42,7 @@ fn ready(owner: Pubkey, maturities: &[i64], min_rung_amount: u64) -> (Env, Pubke
 
 /// init_market + create_epoch for every date + open_ladder: after which
 /// only the deposit itself remains.
-fn preamble<'a>(env: &'a Env, maturities: &[i64], owner: Pubkey) -> Vec<common::svm::Instruction> {
+fn preamble(env: &Env, maturities: &[i64], owner: Pubkey) -> Vec<common::svm::Instruction> {
     let mut chain = vec![env.init_market(0)];
     for maturity in maturities {
         chain.push(env.create_epoch(env.authority, *maturity, RATE_BPS));
@@ -133,7 +133,11 @@ fn weighted_rungs_follow_the_weights() {
     );
     let result = run(&env, &maturities, owner, deposit, Check::success());
 
-    let expected = [(500_000_000u64, 509_863_013u64), (300_000_000, 311_835_616), (200_000_000, 211_835_616)];
+    let expected = [
+        (500_000_000u64, 509_863_013u64),
+        (300_000_000, 311_835_616),
+        (200_000_000, 211_835_616),
+    ];
 
     for (index, maturity) in maturities.iter().enumerate() {
         let rung = rung_at(&result, env.rung(ladder_key, env.epoch(*maturity)));

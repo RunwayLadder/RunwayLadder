@@ -244,6 +244,15 @@
           "writable": true
         },
         {
+          "name": "buffer_vault",
+          "docs": [
+            "The protocol buffer: the fee from the principal goes here (FR-023). It also stands",
+            "as the second step of the waterfall, so the fee is not funds leaving the system",
+            "but a top-up of what covers a shortfall."
+          ],
+          "writable": true
+        },
+        {
           "name": "source",
           "docs": [
             "The wallet the funds leave from. It must belong to the ladder owner —",

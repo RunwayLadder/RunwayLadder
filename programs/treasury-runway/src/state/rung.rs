@@ -2,7 +2,7 @@ use anchor_lang::prelude::*;
 use anchor_spl::token::{Token, TokenAccount, Transfer};
 
 use crate::errors::LadderError;
-use crate::math::{promise, split, Distribution};
+use crate::math::{fee, promise, split, Distribution};
 use crate::state::{Epoch, Ladder, Market};
 
 /// What happened to the rung. A union rather than a sum of boolean flags: the variant
@@ -65,6 +65,12 @@ pub struct LadderDeposit<'info> {
     #[account(mut, address = market.vault)]
     pub vault: Account<'info, TokenAccount>,
 
+    /// The protocol buffer: the fee from the principal goes here (FR-023). It also stands
+    /// as the second step of the waterfall, so the fee is not funds leaving the system
+    /// but a top-up of what covers a shortfall.
+    #[account(mut, address = market.buffer_vault)]
+    pub buffer_vault: Account<'info, TokenAccount>,
+
     /// The wallet the funds leave from. It must belong to the ladder owner —
     /// otherwise the treasurer's signature would debit someone else's account.
     #[account(mut, token::mint = market.asset_mint, token::authority = owner)]
@@ -100,19 +106,26 @@ pub fn ladder_deposit<'info>(
     let ladder_key = ctx.accounts.ladder.key();
     let market_key = ctx.accounts.market.key();
 
-    anchor_spl::token::transfer(
-        CpiContext::new(
-            ctx.accounts.token_program.to_account_info(),
-            Transfer {
-                from: ctx.accounts.source.to_account_info(),
-                to: ctx.accounts.vault.to_account_info(),
-                authority: ctx.accounts.owner.to_account_info(),
-            },
-        ),
-        amount,
-    )?;
+    // The fee is computed from each rung's principal separately, not from the whole amount:
+    // otherwise rounding down would happen once instead of n times, and the total withheld
+    // would not match what is recorded in the rungs themselves (FR-022).
+    let fees = parts
+        .iter()
+        .map(|part| Ok(fee(*part, ctx.accounts.market.fee_bps)?.fee))
+        .collect::<Result<Vec<u64>>>()?;
 
-    for (index, part) in parts.iter().enumerate() {
+    let withheld = fees
+        .iter()
+        .try_fold(0u64, |sum, f| sum.checked_add(*f))
+        .ok_or(LadderError::MathOverflow)?;
+    let working_total = amount.checked_sub(withheld).ok_or(LadderError::MathOverflow)?;
+
+    // Two transfers, one signature: the treasurer sees both what went to work and what
+    // was withheld as separate movements, without having to subtract one from the other.
+    transfer_from_owner(&ctx, ctx.accounts.vault.to_account_info(), working_total)?;
+    transfer_from_owner(&ctx, ctx.accounts.buffer_vault.to_account_info(), withheld)?;
+
+    for (index, (part, fee_paid)) in parts.iter().zip(fees).enumerate() {
         let epoch_info = &ctx.remaining_accounts[index * 2];
         let rung_info = &ctx.remaining_accounts[index * 2 + 1];
 
@@ -122,9 +135,10 @@ pub fn ladder_deposit<'info>(
         require_keys_eq!(epoch.market, market_key, LadderError::RungAccountsMismatch);
         require!(epoch.maturity_ts > now, LadderError::EpochAlreadyMatured);
 
-        // The protocol fee arrives in T024: for now the whole rung amount goes
-        // to work, and `fee_paid` honestly says that zero was withheld.
-        let promised = promise(*part, epoch.rate_bps, epoch.maturity_ts - now)?;
+        // The promise is computed from what really went to work, not from the
+        // principal: otherwise the protocol would promise yield on funds it does not have.
+        let working = part.checked_sub(fee_paid).ok_or(LadderError::MathOverflow)?;
+        let promised = promise(working, epoch.rate_bps, epoch.maturity_ts - now)?;
 
         let epoch_key = epoch.key();
         let seeds: &[&[u8]] = &[b"rung", ladder_key.as_ref(), epoch_key.as_ref()];
@@ -149,9 +163,9 @@ pub fn ladder_deposit<'info>(
         let rung = Rung {
             ladder: ladder_key,
             epoch: epoch_key,
-            deposited: *part,
+            deposited: working,
             promised,
-            fee_paid: 0,
+            fee_paid,
             status: RungStatus::Active,
             bump,
         };
@@ -160,7 +174,7 @@ pub fn ladder_deposit<'info>(
         // Epoch accumulators: the payout ratio is computed once per epoch, and without
         // these sums there would be nothing to compute it from.
         epoch.total_deposited =
-            epoch.total_deposited.checked_add(*part).ok_or(LadderError::MathOverflow)?;
+            epoch.total_deposited.checked_add(working).ok_or(LadderError::MathOverflow)?;
         epoch.total_promised =
             epoch.total_promised.checked_add(promised).ok_or(LadderError::MathOverflow)?;
         epoch.exit(&crate::ID)?;
@@ -173,4 +187,28 @@ pub fn ladder_deposit<'info>(
         .ok_or(LadderError::MathOverflow)?;
 
     Ok(())
+}
+
+/// A transfer from the treasurer's wallet under their own signature. Zero is skipped: a
+/// zero transfer is compute spent on a record that changes nothing.
+fn transfer_from_owner<'info>(
+    ctx: &Context<'_, '_, 'info, 'info, LadderDeposit<'info>>,
+    to: AccountInfo<'info>,
+    amount: u64,
+) -> Result<()> {
+    if amount == 0 {
+        return Ok(());
+    }
+
+    anchor_spl::token::transfer(
+        CpiContext::new(
+            ctx.accounts.token_program.to_account_info(),
+            Transfer {
+                from: ctx.accounts.source.to_account_info(),
+                to,
+                authority: ctx.accounts.owner.to_account_info(),
+            },
+        ),
+        amount,
+    )
 }

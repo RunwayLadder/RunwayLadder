@@ -126,7 +126,9 @@ pub fn split(total: u64, distribution: &Distribution) -> Result<Vec<u64>> {
 
     // Each division rounds down and loses less than one unit, so the remainder is always smaller
     // than the number of rungs and is handed out exactly one unit each.
-    let mut remainder = parts.iter().try_fold(total, |left, part| left.checked_sub(*part))
+    let mut remainder = parts
+        .iter()
+        .try_fold(total, |left, part| left.checked_sub(*part))
         .ok_or(LadderError::MathOverflow)?;
 
     for part in parts.iter_mut() {
