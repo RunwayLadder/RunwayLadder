@@ -1,5 +1,6 @@
 use anchor_lang::prelude::*;
 
+use crate::events::LadderOpened;
 use crate::state::Market;
 
 /// What happens to the rung's funds once it is redeemed.
@@ -74,6 +75,15 @@ pub fn open_ladder(ctx: Context<OpenLadder>, seed: u64, roll_policy: RollPolicy)
     ladder.roll_policy = roll_policy;
     ladder.created_at = Clock::get()?.unix_timestamp;
     ladder.bump = ctx.bumps.ladder;
+
+    emit!(LadderOpened {
+        ladder: ladder.key(),
+        owner: ladder.owner,
+        market: ladder.market,
+        seed: ladder.seed,
+        roll_policy: ladder.roll_policy,
+        created_at: ladder.created_at,
+    });
 
     Ok(())
 }

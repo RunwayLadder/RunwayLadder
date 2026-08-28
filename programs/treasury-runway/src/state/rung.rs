@@ -2,6 +2,7 @@ use anchor_lang::prelude::*;
 use anchor_spl::token::{Token, TokenAccount, Transfer};
 
 use crate::errors::LadderError;
+use crate::events::{LadderFunded, RungIssued};
 use crate::math::{fee, promise, split, Distribution};
 use crate::state::{Epoch, Ladder, Market};
 
@@ -171,6 +172,17 @@ pub fn ladder_deposit<'info>(
         };
         rung.try_serialize(&mut &mut rung_info.try_borrow_mut_data()?[..])?;
 
+        emit!(RungIssued {
+            ladder: ladder_key,
+            rung: rung_info.key(),
+            epoch: epoch_key,
+            maturity_ts: epoch.maturity_ts,
+            rate_bps: epoch.rate_bps,
+            deposited: working,
+            promised,
+            fee_paid,
+        });
+
         // Epoch accumulators: the payout ratio is computed once per epoch, and without
         // these sums there would be nothing to compute it from.
         epoch.total_deposited =
@@ -185,6 +197,15 @@ pub fn ladder_deposit<'info>(
         .rung_count
         .checked_add(u32::try_from(rungs).map_err(|_| LadderError::RungAccountsMismatch)?)
         .ok_or(LadderError::MathOverflow)?;
+
+    emit!(LadderFunded {
+        ladder: ladder_key,
+        owner: ctx.accounts.owner.key(),
+        amount,
+        working_total,
+        withheld,
+        rungs: u32::try_from(rungs).map_err(|_| LadderError::RungAccountsMismatch)?,
+    });
 
     Ok(())
 }

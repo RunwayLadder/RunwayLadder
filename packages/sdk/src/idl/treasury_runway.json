@@ -404,6 +404,47 @@
       ]
     }
   ],
+  "events": [
+    {
+      "name": "LadderFunded",
+      "discriminator": [
+        89,
+        89,
+        173,
+        149,
+        107,
+        182,
+        9,
+        202
+      ]
+    },
+    {
+      "name": "LadderOpened",
+      "discriminator": [
+        31,
+        233,
+        8,
+        238,
+        101,
+        142,
+        112,
+        95
+      ]
+    },
+    {
+      "name": "RungIssued",
+      "discriminator": [
+        133,
+        195,
+        238,
+        218,
+        116,
+        8,
+        244,
+        0
+      ]
+    }
+  ],
   "errors": [
     {
       "code": 6000,
@@ -650,6 +691,88 @@
       }
     },
     {
+      "name": "LadderFunded",
+      "docs": [
+        "The deposit summary. Rungs have events of their own, but the amount the treasurer",
+        "signed and the amount the protocol kept belong to none of them individually —",
+        "without this event they would have to be gathered by addition (FR-022)."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "ladder",
+            "type": "pubkey"
+          },
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "docs": [
+              "How much was debited from the treasury wallet — exactly what it confirmed."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "working_total",
+            "docs": [
+              "How much of that went to work."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "withheld",
+            "docs": [
+              "How much was kept in the protocol buffer."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "rungs",
+            "type": "u32"
+          }
+        ]
+      }
+    },
+    {
+      "name": "LadderOpened",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "ladder",
+            "type": "pubkey"
+          },
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "market",
+            "type": "pubkey"
+          },
+          {
+            "name": "seed",
+            "type": "u64"
+          },
+          {
+            "name": "roll_policy",
+            "type": {
+              "defined": {
+                "name": "RollPolicy"
+              }
+            }
+          },
+          {
+            "name": "created_at",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
       "name": "Market",
       "type": {
         "kind": "struct",
@@ -729,6 +852,51 @@
           },
           {
             "name": "Roll"
+          }
+        ]
+      }
+    },
+    {
+      "name": "RungIssued",
+      "docs": [
+        "One rung at the moment of issuance. `promised` here is the same number that landed in",
+        "the account and will never change: the event fixes the promise in time rather than",
+        "relaying current state."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "ladder",
+            "type": "pubkey"
+          },
+          {
+            "name": "rung",
+            "type": "pubkey"
+          },
+          {
+            "name": "epoch",
+            "type": "pubkey"
+          },
+          {
+            "name": "maturity_ts",
+            "type": "i64"
+          },
+          {
+            "name": "rate_bps",
+            "type": "u16"
+          },
+          {
+            "name": "deposited",
+            "type": "u64"
+          },
+          {
+            "name": "promised",
+            "type": "u64"
+          },
+          {
+            "name": "fee_paid",
+            "type": "u64"
           }
         ]
       }
