@@ -402,6 +402,19 @@
         198,
         154
       ]
+    },
+    {
+      "discriminator": [
+        179,
+        121,
+        83,
+        173,
+        23,
+        168,
+        238,
+        7
+      ],
+      "name": "Rung"
     }
   ],
   "events": [
@@ -857,6 +870,60 @@
       }
     },
     {
+      "docs": [
+        "A rung: one date, one fixed promise.",
+        "",
+        "`promised` is written once, at creation. An instruction that overwrites it does not",
+        "exist — and this is not a flag check but the absence of a path: to change the terms",
+        "one would have to create another rung in another epoch."
+      ],
+      "name": "Rung",
+      "type": {
+        "fields": [
+          {
+            "name": "ladder",
+            "type": "pubkey"
+          },
+          {
+            "name": "epoch",
+            "type": "pubkey"
+          },
+          {
+            "docs": [
+              "How much actually went to work — the amount after the protocol fee."
+            ],
+            "name": "deposited",
+            "type": "u64"
+          },
+          {
+            "docs": [
+              "How much the treasury receives on the maturity date. The same number the treasurer",
+              "saw in the deposit preview (FR-007)."
+            ],
+            "name": "promised",
+            "type": "u64"
+          },
+          {
+            "name": "fee_paid",
+            "type": "u64"
+          },
+          {
+            "name": "status",
+            "type": {
+              "defined": {
+                "name": "RungStatus"
+              }
+            }
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ],
+        "kind": "struct"
+      }
+    },
+    {
       "name": "RungIssued",
       "docs": [
         "One rung at the moment of issuance. `promised` here is the same number that landed in",
@@ -897,6 +964,57 @@
           {
             "name": "fee_paid",
             "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "docs": [
+        "What happened to the rung. A union rather than a sum of boolean flags: the variant",
+        "\"redeemed for less than promised, unmarked\" does not exist in the type, so a deficit cannot",
+        "become silent through a forgotten check (FR-011a).",
+        "",
+        "The actual amount lives in the variant, not in a separate field, and this is a deliberate",
+        "departure from the table in `docs/PLAN.md`: a `settled_amount` field next to the status would",
+        "give exactly the representability the invariant forbids."
+      ],
+      "name": "RungStatus",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Active"
+          },
+          {
+            "fields": [
+              {
+                "name": "amount",
+                "type": "u64"
+              }
+            ],
+            "name": "Redeemed"
+          },
+          {
+            "fields": [
+              {
+                "name": "amount",
+                "type": "u64"
+              },
+              {
+                "name": "promised",
+                "type": "u64"
+              }
+            ],
+            "name": "RedeemedWithDeficit"
+          },
+          {
+            "fields": [
+              {
+                "name": "amount",
+                "type": "u64"
+              }
+            ],
+            "name": "Exited"
           }
         ]
       }

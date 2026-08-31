@@ -14,6 +14,13 @@ cd "$(dirname "$0")/.."
 case "${1:-build}" in
   build)
     anchor build
+    # Rung does not make it into the IDL: Anchor sees only the accounts mentioned by type
+    # in #[derive(Accounts)], while rungs arrive from remaining_accounts.
+    # The fragment is produced by the same IdlBuild, the splice lives in scripts/idl-rung.py.
+    # Both steps die in M2, when redeem_rung takes Account<Rung>.
+    cargo test --manifest-path programs/treasury-runway/Cargo.toml \
+      --features idl-build --test idl_rung --quiet
+    python3 scripts/idl-rung.py
     mkdir -p target/deploy packages/sdk/src/idl
     cp "$CARGO_TARGET_DIR/deploy/treasury_runway.so" target/deploy/
     # The IDL goes into the SDK because target/ is outside the index. Otherwise TypeScript
