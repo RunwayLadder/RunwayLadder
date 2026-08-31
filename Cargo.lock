@@ -3476,7 +3476,7 @@ dependencies = [
  "solana-pubkey 2.4.0",
  "solana-sanitize 2.2.1",
  "solana-sdk-ids 2.2.1",
- "solana-short-vec",
+ "solana-short-vec 2.2.1",
  "solana-system-interface 1.0.0",
  "solana-transaction-error 2.2.1",
  "wasm-bindgen",
@@ -3493,7 +3493,9 @@ dependencies = [
  "solana-instruction 3.4.1",
  "solana-sanitize 3.0.1",
  "solana-sdk-ids 3.1.0",
+ "solana-short-vec 3.2.2",
  "solana-transaction-error 3.3.2",
+ "wincode",
 ]
 
 [[package]]
@@ -3662,7 +3664,7 @@ dependencies = [
  "solana-serde-varint",
  "solana-serialize-utils 2.2.1",
  "solana-sha256-hasher 2.3.0",
- "solana-short-vec",
+ "solana-short-vec 2.2.1",
  "solana-slot-hashes 2.2.1",
  "solana-slot-history 2.2.1",
  "solana-stable-layout 2.2.1",
@@ -4077,6 +4079,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5c54c66f19b9766a56fa0057d060de8378676cb64987533fa088861858fc5a69"
 dependencies = [
  "serde",
+]
+
+[[package]]
+name = "solana-short-vec"
+version = "3.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7d8250a4495aad49ad20556a607da53bdcb20de78da10b65afbf918b7f1de647"
+dependencies = [
+ "wincode",
 ]
 
 [[package]]
@@ -4570,7 +4581,7 @@ dependencies = [
  "solana-sdk-ids 2.2.1",
  "solana-serde-varint",
  "solana-serialize-utils 2.2.1",
- "solana-short-vec",
+ "solana-short-vec 2.2.1",
  "solana-system-interface 1.0.0",
 ]
 
@@ -5222,6 +5233,7 @@ dependencies = [
  "serde_json",
  "solana-account 4.3.2",
  "solana-instruction 3.4.1",
+ "solana-message 4.4.1",
  "solana-program-error 3.0.1",
  "solana-pubkey 4.2.1",
 ]
