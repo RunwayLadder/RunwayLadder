@@ -19,5 +19,22 @@
       "maturity_ts": -86400,
       "address": "F4TtAWFYEszadjza2kwgMBNLhmETZ5TDhUw7CwuE1KDy"
     }
+  ],
+  "ladder_owner": "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+  "ladder_seed": 7,
+  "ladder": "HJBVgrDsPMsqh3Y8ss8axGiYVK5UGq55jhgwaSztysiR",
+  "rungs": [
+    {
+      "maturity_ts": 1800000000,
+      "address": "erBvPKr4SnZX7XynhYvkpYmbBs7qGffaCuqiMxfk9VC"
+    },
+    {
+      "maturity_ts": 1807776000,
+      "address": "2oHerB4gqBPPPcmXNNPymhmD9hz6eiCU7rPiMqy4VHVW"
+    },
+    {
+      "maturity_ts": -86400,
+      "address": "68GvDdqaetx8yDdqWkGfgq5LKGaz83ZtsLQWrjnjRksB"
+    }
   ]
 }

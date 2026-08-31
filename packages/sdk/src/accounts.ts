@@ -75,8 +75,86 @@ const epochSchema = z
     bump: e.bump,
   }))
 
+/**
+ * Enum variants arrive from the decoder as named in Rust. A string goes outward:
+ * the dashboard should not have to parse the `{ Roll: {} }` shape to understand the policy.
+ */
+const rollPolicySchema = z
+  .union([z.object({ None: z.object({}) }), z.object({ Roll: z.object({}) })])
+  .transform((p) => ('Roll' in p ? ('roll' as const) : ('none' as const)))
+
+/**
+ * The rung state stays a tagged union in TypeScript too. A flat shape
+ * with `status: 'redeemed'` and an optional amount next to it would make
+ * "redeemed without an amount" representable — exactly what the onchain type lacks (FR-011a).
+ */
+const rungStatusSchema = z
+  .union([
+    z.object({ Active: z.object({}) }),
+    z.object({ Redeemed: z.object({ amount: u64 }) }),
+    z.object({ RedeemedWithDeficit: z.object({ amount: u64, promised: u64 }) }),
+    z.object({ Exited: z.object({ amount: u64 }) }),
+  ])
+  .transform((s) => {
+    if ('Redeemed' in s) return { kind: 'redeemed' as const, amount: s.Redeemed.amount }
+    if ('RedeemedWithDeficit' in s) {
+      return {
+        kind: 'redeemedWithDeficit' as const,
+        amount: s.RedeemedWithDeficit.amount,
+        promised: s.RedeemedWithDeficit.promised,
+      }
+    }
+    if ('Exited' in s) return { kind: 'exited' as const, amount: s.Exited.amount }
+
+    return { kind: 'active' as const }
+  })
+
+const ladderSchema = z
+  .object({
+    owner: publicKey,
+    market: publicKey,
+    seed: u64,
+    rung_count: z.number().int().min(0),
+    roll_policy: rollPolicySchema,
+    created_at: u64,
+    bump,
+  })
+  .transform((l) => ({
+    owner: l.owner,
+    market: l.market,
+    seed: l.seed,
+    rungCount: l.rung_count,
+    rollPolicy: l.roll_policy,
+    createdAt: l.created_at,
+    bump: l.bump,
+  }))
+
+const rungSchema = z
+  .object({
+    ladder: publicKey,
+    epoch: publicKey,
+    deposited: u64,
+    promised: u64,
+    fee_paid: u64,
+    status: rungStatusSchema,
+    bump,
+  })
+  .transform((r) => ({
+    ladder: r.ladder,
+    epoch: r.epoch,
+    deposited: r.deposited,
+    promised: r.promised,
+    feePaid: r.fee_paid,
+    status: r.status,
+    bump: r.bump,
+  }))
+
 export type Market = z.output<typeof marketSchema>
 export type Epoch = z.output<typeof epochSchema>
+export type Ladder = z.output<typeof ladderSchema>
+export type Rung = z.output<typeof rungSchema>
+export type RungStatus = Rung['status']
+export type RollPolicy = Ladder['rollPolicy']
 
 export function decodeMarket(data: Buffer): Market {
   return marketSchema.parse(coder.decode('Market', data))
@@ -84,4 +162,31 @@ export function decodeMarket(data: Buffer): Market {
 
 export function decodeEpoch(data: Buffer): Epoch {
   return epochSchema.parse(coder.decode('Epoch', data))
+}
+
+export function decodeLadder(data: Buffer): Ladder {
+  return ladderSchema.parse(coder.decode('Ladder', data))
+}
+
+/**
+ * `Rung` gets into the IDL through a separate build step (`scripts/idl-rung.py`) — rungs
+ * are created from `remaining_accounts`, and Anchor does not see them there by itself. For this
+ * decoder it makes no difference: the layout still comes from Rust.
+ */
+export function decodeRung(data: Buffer): Rung {
+  return rungSchema.parse(coder.decode('Rung', data))
+}
+
+/**
+ * The account discriminator — what `getProgramAccounts` uses to pick out rungs.
+ * Taken from the IDL rather than recomputed: it is the same eight bytes the
+ * program wrote, and computing it a second time would mean having a second answer.
+ */
+export function rungDiscriminator(): Buffer {
+  const account = idl.accounts.find((a) => a.name === 'Rung')
+  if (!account) {
+    throw new Error('Rung is not in the IDL — the build did not splice the fragment in')
+  }
+
+  return Buffer.from(account.discriminator)
 }

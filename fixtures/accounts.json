@@ -21,5 +21,26 @@
     "total_deposited": 997500000,
     "total_promised": 1017176712,
     "bump": 253
+  },
+  "ladder": {
+    "base64": "fZIj/ioHzN4BAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAVq69wPsfb5ZSAmQBNfm7QQDTrpZpNYWsoqK3gAHg3fQBwAAAAAAAAAEAAAAAQDSSWsAAAAA/Q==",
+    "owner": "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+    "market": "77B3e5ybjnHjqPXEYgDp2eFHN3RAMGywUM1QWkspD3dH",
+    "seed": 7,
+    "rung_count": 4,
+    "roll_policy": "roll",
+    "created_at": 1800000000,
+    "bump": 253
+  },
+  "rung": {
+    "base64": "s3lTrReo7gfyIbsZ0k16R+r84g8C1jSAC5kpfznytJ2INZXku0BwuktYb6lgdc5XApyd1JO9qKeSnOLycU1Kwk0p7fztp+yzGCndDgAAAACiOCgPAAAAAGiJCQAAAAAAAoCy5g4AAAAAojgoDwAAAAD8",
+    "ladder": "HJBVgrDsPMsqh3Y8ss8axGiYVK5UGq55jhgwaSztysiR",
+    "epoch": "657ns3AmopPyHNGLmADGy6cVVhVoRTua699bfuDfLeH8",
+    "deposited": 249375000,
+    "promised": 254294178,
+    "fee_paid": 625000,
+    "status": "redeemedWithDeficit",
+    "settled_amount": 250000000,
+    "bump": 252
   }
 }

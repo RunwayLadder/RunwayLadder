@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { PublicKey } from '@solana/web3.js'
 import { describe, expect, it } from 'vitest'
-import { decodeEpoch, decodeMarket } from '../src/accounts.js'
+import { decodeEpoch, decodeLadder, decodeMarket, decodeRung } from '../src/accounts.js'
 
 type Fixture = {
   market: {
@@ -14,6 +14,27 @@ type Fixture = {
     source_rate_bps: number
     fee_bps: number
     min_rung_amount: number
+    bump: number
+  }
+  ladder: {
+    base64: string
+    owner: string
+    market: string
+    seed: number
+    rung_count: number
+    roll_policy: string
+    created_at: number
+    bump: number
+  }
+  rung: {
+    base64: string
+    ladder: string
+    epoch: string
+    deposited: number
+    promised: number
+    fee_paid: number
+    status: string
+    settled_amount: number
     bump: number
   }
   epoch: {
@@ -102,5 +123,55 @@ describe('the network is not a trusted input', () => {
 describe('PublicKey plumbing', () => {
   it('round-trips the reference authority', () => {
     expect(new PublicKey(fixture.market.authority).toBuffer()).toEqual(Buffer.alloc(32, 1))
+  })
+})
+
+describe('decodeLadder', () => {
+  const ladder = decodeLadder(Buffer.from(fixture.ladder.base64, 'base64'))
+
+  it('reads every field of the reference account', () => {
+    expect(ladder.owner.toBase58()).toBe(fixture.ladder.owner)
+    expect(ladder.market.toBase58()).toBe(fixture.ladder.market)
+    expect(ladder.seed).toBe(BigInt(fixture.ladder.seed))
+    expect(ladder.rungCount).toBe(fixture.ladder.rung_count)
+    expect(ladder.createdAt).toBe(BigInt(fixture.ladder.created_at))
+    expect(ladder.bump).toBe(fixture.ladder.bump)
+  })
+
+  it('flattens the roll policy into a name', () => {
+    // The dashboard asks "rolls or not" rather than parsing the `{ Roll: {} }` shape.
+    expect(ladder.rollPolicy).toBe(fixture.ladder.roll_policy)
+  })
+})
+
+describe('decodeRung', () => {
+  const rung = decodeRung(Buffer.from(fixture.rung.base64, 'base64'))
+
+  it('reads every field of the reference account', () => {
+    expect(rung.ladder.toBase58()).toBe(fixture.rung.ladder)
+    expect(rung.epoch.toBase58()).toBe(fixture.rung.epoch)
+    expect(rung.deposited).toBe(BigInt(fixture.rung.deposited))
+    expect(rung.promised).toBe(BigInt(fixture.rung.promised))
+    expect(rung.feePaid).toBe(BigInt(fixture.rung.fee_paid))
+    expect(rung.bump).toBe(fixture.rung.bump)
+  })
+
+  it('keeps the deficit inside the status, with both numbers', () => {
+    // A flat shape with a status string and an amount next to it would make
+    // "redeemed without an amount" representable — what the onchain type lacks (FR-011a).
+    expect(rung.status.kind).toBe(fixture.rung.status)
+    if (rung.status.kind !== 'redeemedWithDeficit') throw new Error('expected a deficit')
+
+    expect(rung.status.amount).toBe(BigInt(fixture.rung.settled_amount))
+    expect(rung.status.promised).toBe(BigInt(fixture.rung.promised))
+    expect(rung.status.amount).toBeLessThan(rung.status.promised)
+  })
+
+  it('reads an account whose data is longer than the value it holds', () => {
+    // The account on the network has the full InitSpace size, while the status variant is
+    // short. The tail of zeros must stay a tail, not become an error.
+    const raw = Buffer.from(fixture.rung.base64, 'base64')
+    expect(raw.length).toBeGreaterThan(8 + 32 + 32 + 8 + 8 + 8 + 17 + 1 - 1)
+    expect(() => decodeRung(raw)).not.toThrow()
   })
 })

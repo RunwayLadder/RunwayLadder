@@ -51,6 +51,27 @@ fn sdk_addresses_match_the_program_seeds() {
         );
         assert_eq!(epoch, pubkey(&case["address"]), "epoch {maturity_ts}");
     }
+
+    // The ladder number is an unsigned u64, unlike the maturity date. It is easy to get
+    // wrong here precisely because both are eight bytes.
+    let owner = pubkey(&f["ladder_owner"]);
+    let seed = f["ladder_seed"].as_u64().expect("ladder_seed");
+    let (ladder, _) =
+        Pubkey::find_program_address(&[b"ladder", owner.as_ref(), &seed.to_le_bytes()], &program_id);
+    assert_eq!(ladder, pubkey(&f["ladder"]), "ladder");
+
+    for case in f["rungs"].as_array().expect("rungs") {
+        let maturity_ts = case["maturity_ts"].as_i64().expect("maturity_ts");
+        let (epoch, _) = Pubkey::find_program_address(
+            &[b"epoch", market.as_ref(), &maturity_ts.to_le_bytes()],
+            &program_id,
+        );
+        let (rung, _) = Pubkey::find_program_address(
+            &[b"rung", ladder.as_ref(), epoch.as_ref()],
+            &program_id,
+        );
+        assert_eq!(rung, pubkey(&case["address"]), "rung {maturity_ts}");
+    }
 }
 
 #[test]
