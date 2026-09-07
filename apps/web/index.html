@@ -14,6 +14,8 @@
   </head>
   <body class="dark">
     <div id="root"></div>
+    <!-- Order matters: the SDK derives PDAs through Buffer at module load. -->
+    <script type="module" src="/src/polyfills.ts"></script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

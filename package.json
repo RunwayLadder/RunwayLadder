@@ -30,6 +30,12 @@
     "comment": "One line of web3.js only. @coral-xyz/anchor 0.32.1 depends on ^1.69, and a second major in the tree means two copies of PublicKey/Transaction — a mismatch that surfaces as a failed signature or an undecodable account at runtime, not as a build error.",
     "overrides": {
       "@solana/web3.js": "1.98.4"
+    },
+    "peerComment": "@solana-mobile/mobile-wallet-adapter-protocol declares react-native as a required peer, so pnpm installs it — 253 packages that never execute in a desktop treasury dashboard. The peer stays unmet on purpose; the mobile adapter is only reachable from a React Native host.",
+    "peerDependencyRules": {
+      "ignoreMissing": [
+        "react-native"
+      ]
     }
   }
 }

@@ -1,8 +1,10 @@
 import { useState } from 'react'
-import { ladder, PROTOTYPE_NOTICE, type Rung, rungs, treasury } from '@/lib/treasuryMock'
+import { NetworkNotice } from '@/components/NetworkNotice'
+import { ladder, type Rung, rungs, treasury } from '@/lib/treasuryMock'
 import { BuildLadder } from '@/views/BuildLadder'
 import { LadderDashboard } from '@/views/LadderDashboard'
 import { RungDetail } from '@/views/RungDetail'
+import { OwnerAddress, WalletCorner } from '@/wallet'
 
 type View = 'build' | 'dashboard' | 'detail'
 
@@ -23,9 +25,7 @@ const App = () => {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <div className="border-b border-border bg-[hsl(var(--surface-raised))] px-4 py-1.5 text-center text-xs text-muted-foreground">
-        {PROTOTYPE_NOTICE}
-      </div>
+      <NetworkNotice />
 
       <header className="border-b border-border">
         <div className="mx-auto flex max-w-[1440px] flex-wrap items-end justify-between gap-4 px-4 py-4 md:px-6">
@@ -33,11 +33,12 @@ const App = () => {
             <div className="label-caps">TreasuryRunway · fixed-income layer</div>
             <h1 className="mt-1 text-xl font-semibold tracking-tight">{treasury.name}</h1>
             <p className="mt-1 text-xs text-muted-foreground">
-              {treasury.owner} · <span className="num">{treasury.address}</span> · {treasury.asset}{' '}
-              on {treasury.network}
+              {treasury.owner} · <OwnerAddress fallback={treasury.address} /> · {treasury.asset} on{' '}
+              {treasury.network}
             </p>
           </div>
-          <div className="flex flex-wrap gap-x-8 gap-y-1 text-xs text-muted-foreground">
+          <div className="flex flex-wrap items-center gap-x-8 gap-y-1 text-xs text-muted-foreground">
+            <WalletCorner />
             <span>
               Total stablecoin balance{' '}
               <span className="num text-foreground">{treasury.totalBalance} USDC</span>

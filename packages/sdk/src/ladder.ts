@@ -143,6 +143,18 @@ export type LadderView = {
 }
 
 /**
+ * There is no ladder at the address. A separate type rather than a plain `Error`: "the
+ * treasurer has not laddered anything yet" is a normal dashboard state, not a read failure,
+ * and telling them apart by message text would mean comparing strings.
+ */
+export class LadderNotFoundError extends Error {
+  constructor(readonly address: PublicKey) {
+    super(`ladder ${address.toBase58()} is not on the network`)
+    this.name = 'LadderNotFoundError'
+  }
+}
+
+/**
  * The network methods needed to read a ladder. Narrower than `Connection`
  * on purpose: the test substitutes responses here rather than running a validator.
  */
@@ -169,7 +181,7 @@ export async function fetchLadder(
 
   const account = await connection.getAccountInfo(address)
   if (!account) {
-    throw new Error(`ladder ${address.toBase58()} is not on the network`)
+    throw new LadderNotFoundError(address)
   }
 
   const ladder = decodeLadder(account.data)
