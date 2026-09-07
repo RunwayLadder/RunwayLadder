@@ -19,11 +19,13 @@ const market: MarketParams = {
 }
 
 /** The same calendar as in the prototype: 30/60/90/180 days with the operator rates. */
+const operator = { operator: '9fRe…Lq2b', ratesSetAt: 999_000_000n }
+
 const calendar: PublishedEpoch[] = [
-  { termDays: 30, rateBps: 480, maturityTs: 1_000_000_000n },
-  { termDays: 60, rateBps: 520, maturityTs: 1_002_592_000n },
-  { termDays: 90, rateBps: 560, maturityTs: 1_005_184_000n },
-  { termDays: 180, rateBps: 620, maturityTs: 1_012_960_000n },
+  { termDays: 30, rateBps: 480, maturityTs: 1_000_000_000n, ...operator },
+  { termDays: 60, rateBps: 520, maturityTs: 1_002_592_000n, ...operator },
+  { termDays: 90, rateBps: 560, maturityTs: 1_005_184_000n, ...operator },
+  { termDays: 180, rateBps: 620, maturityTs: 1_012_960_000n, ...operator },
 ]
 
 const input = (over: Partial<PlanInput> = {}): PlanInput => ({
@@ -58,7 +60,7 @@ describe('M0 reference ladder', () => {
   it('gives the same numbers the prototype showed', () => {
     const plan = planOf()
     const shown = plan.rungs.map((rung) => ({
-      term: rung.termDays,
+      term: rung.epoch.termDays,
       deposited: formatAmount(rung.deposited, 6),
       fee: formatAmount(rung.fee, 6),
       working: formatAmount(rung.working, 6),
@@ -117,6 +119,7 @@ describe('deposit limits', () => {
       termDays: index + 1,
       rateBps: 500,
       maturityTs: BigInt(1_000_000_000 + index),
+      ...operator,
     }))
 
     expect(maxRungs(many, 365)).toBe(11)
@@ -180,7 +183,10 @@ describe('rung dates', () => {
   it('a rung carries the date of a published epoch, not an invented one', () => {
     const plan = planOf({ rungCount: 2 })
 
-    expect(plan.rungs.map((rung) => rung.maturityTs)).toEqual([1_000_000_000n, 1_012_960_000n])
+    expect(plan.rungs.map((rung) => rung.epoch.maturityTs)).toEqual([
+      1_000_000_000n,
+      1_012_960_000n,
+    ])
   })
 })
 

@@ -30,11 +30,18 @@ export type NetworkConfig =
       readonly endpoint: string
       readonly cluster: Cluster
       readonly programId: PublicKey
+      /**
+       * The market the dashboard shows. Without it the network is read (program,
+       * ladder) but there are no prices: the market sets the fee, the rung minimum and the mint,
+       * and there is no way to guess them from the program address.
+       */
+      readonly market: PublicKey | null
     }
 
 const envSchema = z.object({
   VITE_RPC_URL: z.string().trim().optional(),
   VITE_PROGRAM_ID: z.string().trim().optional(),
+  VITE_MARKET: z.string().trim().optional(),
 })
 
 /**
@@ -103,11 +110,22 @@ export function readNetworkConfig(env: NetworkEnv): NetworkConfig {
     return { kind: 'offline', reason: `VITE_PROGRAM_ID is not an address: ${program}` }
   }
 
+  const { VITE_MARKET: marketInput } = parsed.data
+  let market: PublicKey | null = null
+  if (marketInput) {
+    try {
+      market = new PublicKey(marketInput)
+    } catch {
+      return { kind: 'offline', reason: `VITE_MARKET is not an address: ${marketInput}` }
+    }
+  }
+
   return {
     kind: 'live',
     endpoint: url.toString(),
     cluster: clusterOf(url.hostname),
     programId,
+    market,
   }
 }
 

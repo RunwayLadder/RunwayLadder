@@ -63,6 +63,11 @@ export const prototypeMarket = {
  * builds the ladder **from these dates**, not arbitrary ones: a date invented by the
  * client would point at an epoch that does not exist. T030 replaces this list with epochs read from the network.
  */
+export const PROTOTYPE_OPERATOR = '9fRe…Lq2b'
+
+/** 2026-08-18 09:14 UTC — the same moment the Pricing panel shows. */
+export const PROTOTYPE_RATES_SET_AT = 1_787_044_440n
+
 export const publishedEpochs: { termDays: number; rateBps: number }[] = [
   { termDays: 30, rateBps: 480 },
   { termDays: 60, rateBps: 520 },

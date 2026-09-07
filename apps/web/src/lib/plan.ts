@@ -32,6 +32,10 @@ export type PublishedEpoch = {
   readonly termDays: number
   readonly rateBps: number
   readonly maturityTs: bigint
+  /** Who set the rate. FR-010a: trust in the operator must not be implicit. */
+  readonly operator: string
+  /** When it was set, in Unix seconds. */
+  readonly ratesSetAt: bigint
 }
 
 export type PlanInput = {
@@ -45,9 +49,9 @@ export type PlanInput = {
 
 export type PlanRung = {
   readonly index: number
-  readonly termDays: number
-  readonly maturityTs: bigint
-  readonly rateBps: number
+  /** The whole epoch, not numbers pulled out of it: the rate disclosure (FR-010a)
+   *  needs the operator and the moment just as the table needs the amount. */
+  readonly epoch: PublishedEpoch
   readonly deposited: bigint
   readonly fee: bigint
   readonly working: bigint
@@ -247,9 +251,7 @@ export function buildPlan(
 
     return {
       index: index + 1,
-      termDays: epoch.termDays,
-      maturityTs: epoch.maturityTs,
-      rateBps: epoch.rateBps,
+      epoch,
       deposited,
       fee: split.fee,
       working: split.working,
@@ -308,7 +310,8 @@ export function blendedNetRatePercent(plan: Plan): number {
   if (deposited === 0) return 0
 
   const weightedDays =
-    plan.rungs.reduce((sum, rung) => sum + Number(rung.deposited) * rung.termDays, 0) / deposited
+    plan.rungs.reduce((sum, rung) => sum + Number(rung.deposited) * rung.epoch.termDays, 0) /
+    deposited
 
   return (Number(plan.totals.netGain) / deposited) * (365 / weightedDays) * 100
 }

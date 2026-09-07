@@ -178,15 +178,20 @@ export function decodeRung(data: Buffer): Rung {
 }
 
 /**
- * The account discriminator — what `getProgramAccounts` uses to pick out rungs.
+ * The account discriminator — what `getProgramAccounts` uses to pick out its own.
  * Taken from the IDL rather than recomputed: it is the same eight bytes the
  * program wrote, and computing it a second time would mean having a second answer.
  */
-export function rungDiscriminator(): Buffer {
-  const account = idl.accounts.find((a) => a.name === 'Rung')
+export function accountDiscriminator(name: 'Market' | 'Epoch' | 'Ladder' | 'Rung'): Buffer {
+  const account = idl.accounts.find((a) => a.name === name)
   if (!account) {
-    throw new Error('Rung is not in the IDL — the build did not splice the fragment in')
+    throw new Error(`${name} is not in the IDL — the build did not splice the fragment in`)
   }
 
   return Buffer.from(account.discriminator)
+}
+
+/** `Rung` gets into the IDL through a separate build step — see `decodeRung`. */
+export function rungDiscriminator(): Buffer {
+  return accountDiscriminator('Rung')
 }

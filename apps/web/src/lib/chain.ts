@@ -9,7 +9,15 @@
 import { useConnection } from '@solana/wallet-adapter-react'
 import type { PublicKey } from '@solana/web3.js'
 import { QueryClient, skipToken, useQuery } from '@tanstack/react-query'
-import { fetchLadder, LadderNotFoundError, type LadderView } from '@treasury-runway/sdk'
+import {
+  type Epoch,
+  fetchEpochs,
+  fetchLadder,
+  fetchMarket,
+  fetchMintDecimals,
+  LadderNotFoundError,
+  type LadderView,
+} from '@treasury-runway/sdk'
 import { liveNetwork } from '@/lib/network'
 
 /**
@@ -82,6 +90,49 @@ export function useLadder(owner: PublicKey | null, seed: bigint) {
               if (error instanceof LadderNotFoundError) return null
               throw error
             }
+          }
+        : skipToken,
+  })
+}
+
+/**
+ * Market parameters and the decimals of its mint — two reads, because the number of
+ * decimals lives in the mint, not in the market. Together they are what the form computes
+ * amounts with, so it is one query: half of this data lets you compute nothing.
+ */
+export function useMarketParams() {
+  const { connection } = useConnection()
+  const market = live?.market ?? null
+
+  return useQuery({
+    queryKey: ['market', scope, market?.toBase58() ?? null],
+    queryFn: market
+      ? async () => {
+          const account = await fetchMarket(connection, market)
+          const decimals = await fetchMintDecimals(connection, account.assetMint)
+
+          return { market: account, decimals }
+        }
+      : skipToken,
+  })
+}
+
+/**
+ * The market's epochs — the calendar the form builds the ladder from. Ordering and the
+ * "not yet matured" filter stay in `lib/pricing.ts`: here there is only reading.
+ */
+export function useEpochs() {
+  const { connection } = useConnection()
+  const market = live?.market ?? null
+
+  return useQuery({
+    queryKey: ['epochs', scope, programId, market?.toBase58() ?? null],
+    queryFn:
+      live && market
+        ? async (): Promise<Epoch[]> => {
+            const views = await fetchEpochs(connection, market, live.programId)
+
+            return views.map((view) => view.epoch)
           }
         : skipToken,
   })

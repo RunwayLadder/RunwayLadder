@@ -1,5 +1,5 @@
 import { Amount, StatusBadge } from '@/components/Primitives'
-import { epoch, type Rung } from '@/lib/treasuryMock'
+import type { Rung } from '@/lib/treasuryMock'
 
 const th = 'px-3 py-2 text-left align-bottom label-caps font-medium'
 const thNum = `${th} text-right`
@@ -110,10 +110,11 @@ export const RungTable = ({
         </tfoot>
       )}
     </table>
+    {/* Who set these rates and when lives in `RateDisclosure`: here they would be
+        a second copy of the same data, and that copy is the one that would drift from the chain. */}
     <p className="border-t border-border px-3 py-2 text-xs text-muted-foreground">
-      Every rate above was set by {epoch.operator} at {epoch.ratesSetAt}. {epoch.fixedNote} Amounts
-      are shown to the cent; “…” marks a figure the display truncates — the signed amount is exact
-      to the last unit of the mint.
+      Amounts are shown to the cent; “…” marks a figure the display truncates — the signed amount is
+      exact to the last unit of the mint.
     </p>
   </div>
 )

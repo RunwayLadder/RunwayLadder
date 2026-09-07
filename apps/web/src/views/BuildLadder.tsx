@@ -1,5 +1,7 @@
+import { MAX_RUNGS_PER_DEPOSIT } from '@treasury-runway/sdk'
 import { type ReactNode, useMemo, useState } from 'react'
 import { Amount, Panel } from '@/components/Primitives'
+import { RateDisclosure } from '@/components/RateDisclosure'
 import { RungTable } from '@/components/RungTable'
 import { formatAmount, formatAmountShown, formatBps } from '@/lib/amount'
 import {
@@ -8,37 +10,18 @@ import {
   evenWeightsBps,
   maxRungs,
   type Plan,
+  type PlanResult,
   type PlanRung,
   type ProblemField,
-  type PublishedEpoch,
 } from '@/lib/plan'
-import {
-  epoch,
-  ladder,
-  MINIMUM_POSITION_SIZE_LABEL,
-  prototypeMarket,
-  publishedEpochs,
-  type Rung,
-  rollPolicyCopy,
-  treasury,
-} from '@/lib/treasuryMock'
+import type { Pricing } from '@/lib/pricing'
+import { type Rung, rollPolicyCopy, treasury } from '@/lib/treasuryMock'
+import { usePricing } from '@/lib/usePricing'
 
 /** A stable `id` instead of an index: the key and `htmlFor` must not depend on position. */
 type Weight = { id: string; value: string }
 
 const HORIZONS = [30, 90, 180, 365] as const
-
-/**
- * The prototype calendar's dates are counted from page load and do not
- * drift until it is reloaded. On the network they are set by the epoch operator, and it is
- * their dates that T030 will substitute — here they are merely plausible.
- */
-const NOW_SECONDS = BigInt(Math.floor(Date.now() / 1000))
-
-const CALENDAR: PublishedEpoch[] = publishedEpochs.map((entry) => ({
-  ...entry,
-  maturityTs: NOW_SECONDS + BigInt(entry.termDays * 86_400),
-}))
 
 const isoDate = (maturityTs: bigint): string =>
   new Date(Number(maturityTs) * 1000).toISOString().slice(0, 10)
@@ -57,16 +40,16 @@ const weightsFor = (rungCount: number): Weight[] =>
 const toRow = (rung: PlanRung, decimals: number): Rung => ({
   index: rung.index,
   id: `plan-rung-${rung.index}`,
-  term: `${rung.termDays} d`,
-  termDays: rung.termDays,
-  maturity: isoDate(rung.maturityTs),
-  fixedRate: formatBps(rung.rateBps),
+  term: `${rung.epoch.termDays} d`,
+  termDays: rung.epoch.termDays,
+  maturity: isoDate(rung.epoch.maturityTs),
+  fixedRate: formatBps(rung.epoch.rateBps),
   deposited: formatAmountShown(rung.deposited, decimals),
   fee: formatAmountShown(rung.fee, decimals),
   working: formatAmountShown(rung.working, decimals),
   guaranteed: formatAmountShown(rung.guaranteed, decimals),
   status: 'Active',
-  countdown: `${rung.termDays} days to maturity`,
+  countdown: `${rung.epoch.termDays} days to maturity`,
 })
 
 const FieldRow = ({
@@ -118,7 +101,7 @@ const SegmentedControl = <T extends string | number>({
 const SummaryRow = ({
   label,
   value,
-  unit = 'USDC',
+  unit,
 }: {
   label: string
   value: string
@@ -126,7 +109,7 @@ const SummaryRow = ({
 }) => (
   <div className="flex items-baseline justify-between gap-6 border-b border-border py-2 last:border-b-0">
     <span className="text-sm text-muted-foreground">{label}</span>
-    <Amount value={value} unit={unit} className="text-sm" />
+    <Amount value={value} unit={unit ?? null} className="text-sm" />
   </div>
 )
 
@@ -134,9 +117,17 @@ const SummaryRow = ({
  * An unpriced configuration shows a dash, not an estimate: a figure here is a promise,
  * and an approximate promise is worse than none.
  */
-const SummaryRows = ({ plan, decimals }: { plan: Plan | null; decimals: number }) => {
+const SummaryRows = ({
+  plan,
+  decimals,
+  symbol,
+}: {
+  plan: Plan | null
+  decimals: number
+  symbol: string
+}) => {
   const money = (value: bigint) => (plan ? formatAmount(value, decimals) : '—')
-  const unit = plan ? 'USDC' : null
+  const unit = plan ? symbol : null
   const totals = plan?.totals
 
   return (
@@ -158,6 +149,43 @@ const SummaryRows = ({ plan, decimals }: { plan: Plan | null; decimals: number }
   )
 }
 
+const WeightsGrid = ({
+  weights,
+  onChange,
+  problems,
+}: {
+  weights: readonly Weight[]
+  onChange: (id: string, value: string) => void
+  problems: readonly string[]
+}) => (
+  <>
+    <div className="mt-3 grid grid-cols-4 gap-2">
+      {weights.map(({ id, value }, index) => (
+        <div key={id}>
+          <label className="label-caps block" htmlFor={id}>
+            Rung {index + 1}
+          </label>
+          <div className="mt-1 flex items-center gap-1">
+            <input
+              id={id}
+              className="field"
+              inputMode="decimal"
+              value={value}
+              onChange={(event) => onChange(id, event.target.value)}
+            />
+            <span className="text-xs text-muted-foreground">%</span>
+          </div>
+        </div>
+      ))}
+    </div>
+    {problems.length > 0 && (
+      <p className="mt-2 text-xs" style={{ color: 'hsl(var(--caution))' }}>
+        {problems.join(' ')}
+      </p>
+    )}
+  </>
+)
+
 const Problems = ({ messages }: { messages: readonly string[] }) => (
   <div
     className="mb-3 space-y-1 rounded-sm border px-3 py-2 text-sm"
@@ -170,7 +198,127 @@ const Problems = ({ messages }: { messages: readonly string[] }) => (
   </div>
 )
 
+const SummaryPanel = ({
+  plan,
+  decimals,
+  symbol,
+  problems,
+  onConfirm,
+}: {
+  plan: Plan | null
+  decimals: number
+  symbol: string
+  problems: readonly string[]
+  onConfirm: () => void
+}) => (
+  <Panel title="Summary" subtitle="What goes to work, before you sign.">
+    <SummaryRows plan={plan} decimals={decimals} symbol={symbol} />
+
+    <div className="border-t border-border px-4 py-4">
+      {problems.length > 0 && <Problems messages={problems} />}
+
+      <button
+        type="button"
+        disabled={plan === null}
+        onClick={onConfirm}
+        className="w-full rounded-sm px-4 py-2.5 text-sm font-semibold transition-opacity disabled:cursor-not-allowed disabled:opacity-40"
+        style={{
+          backgroundColor: 'hsl(var(--primary))',
+          color: 'hsl(var(--primary-foreground))',
+        }}
+      >
+        Deposit and build ladder — 1 signature
+      </button>
+      <p className="mt-2 text-xs text-muted-foreground">
+        All {plan?.rungs.length ?? 0} rungs are created in a single transaction.
+      </p>
+    </div>
+  </Panel>
+)
+
+/**
+ * The right column: what exactly will be signed. A separate component not for beauty —
+ * the complexity boundary keeps the screen readable as a single thought.
+ */
+const PreviewColumn = ({
+  pricing,
+  result,
+  plan,
+  decimals,
+  symbol,
+  distribution,
+  rollPolicy,
+  onConfirm,
+}: {
+  pricing: Pricing
+  result: PlanResult | null
+  plan: Plan | null
+  decimals: number
+  symbol: string
+  distribution: 'even' | 'weighted'
+  rollPolicy: boolean
+  onConfirm: () => void
+}) => {
+  const priced = pricing.kind === 'unavailable' ? null : pricing
+  const amountProblems =
+    !result || result.ok ? [] : result.problems.filter((problem) => problem.field === 'amount')
+
+  /** One reason: either there are no prices at all, or the configuration does not pass. */
+  const unpriced =
+    pricing.kind === 'unavailable'
+      ? [pricing.reason]
+      : (result?.ok ? [] : (result?.problems ?? [])).map((problem) => problem.message)
+
+  return (
+    <div className="space-y-4">
+      <Panel
+        title="Preview"
+        subtitle={
+          priced
+            ? `${distribution === 'even' ? 'Even split' : 'Custom weights'} · fee ${formatBps(priced.market.feeBps)} (${priced.market.feeBps} bps) · roll policy ${rollPolicy ? 'on' : 'off'} · ${pricing.kind === 'chain' ? 'read from chain' : 'prototype prices'}`
+            : 'No prices to build a preview from.'
+        }
+      >
+        {plan ? (
+          <RungTable
+            rungs={plan.rungs.map((rung) => toRow(rung, decimals))}
+            totals={{
+              deposited: formatAmountShown(plan.totals.deposited, decimals),
+              fee: formatAmountShown(plan.totals.fee, decimals),
+              working: formatAmountShown(plan.totals.working, decimals),
+              guaranteed: formatAmountShown(plan.totals.guaranteed, decimals),
+            }}
+          />
+        ) : (
+          <div className="px-4 py-6 text-sm text-muted-foreground">
+            <p>No schedule is priced for this configuration.</p>
+            <ul className="mt-2 space-y-1">
+              {unpriced.map((message) => (
+                <li key={message}>{message}</li>
+              ))}
+            </ul>
+            <p className="mt-2">
+              Nothing is estimated here — an unpriced ladder shows nothing rather than a guess.
+            </p>
+          </div>
+        )}
+      </Panel>
+
+      <SummaryPanel
+        plan={plan}
+        decimals={decimals}
+        symbol={symbol}
+        problems={amountProblems.map((problem) => problem.message)}
+        onConfirm={onConfirm}
+      />
+    </div>
+  )
+}
+
 export const BuildLadder = ({ onConfirm }: { onConfirm: () => void }) => {
+  const pricing = usePricing()
+  const priced = pricing.kind === 'unavailable' ? null : pricing
+
   const [amount, setAmount] = useState('1000000')
   const [horizon, setHorizon] = useState<number>(180)
   const [rungCount, setRungCount] = useState<number>(4)
@@ -178,30 +326,40 @@ export const BuildLadder = ({ onConfirm }: { onConfirm: () => void }) => {
   const [weights, setWeights] = useState<Weight[]>(() => weightsFor(4))
   const [rollPolicy, setRollPolicy] = useState(false)
 
+  const calendar = priced?.calendar ?? []
+
   const rungOptions = useMemo(
-    () => Array.from({ length: maxRungs(CALENDAR, horizon) }, (_, index) => index + 1),
-    [horizon],
+    () => Array.from({ length: maxRungs(calendar, horizon) }, (_, index) => index + 1),
+    [calendar, horizon],
   )
 
   const result = useMemo(
     () =>
-      buildPlan(
-        {
-          amount,
-          horizonDays: horizon,
-          rungCount,
-          distribution,
-          weights: weights.map((entry) => entry.value),
-        },
-        prototypeMarket,
-        CALENDAR,
-      ),
-    [amount, horizon, rungCount, distribution, weights],
+      priced
+        ? buildPlan(
+            {
+              amount,
+              horizonDays: horizon,
+              rungCount,
+              distribution,
+              weights: weights.map((entry) => entry.value),
+            },
+            priced.market,
+            priced.calendar,
+          )
+        : null,
+    [priced, amount, horizon, rungCount, distribution, weights],
   )
 
-  const plan = result.ok ? result.plan : null
+  const plan = result?.ok ? result.plan : null
+  const decimals = priced?.market.decimals ?? 0
+  const symbol = priced?.market.symbol ?? treasury.asset
+
   const problemsIn = (field: ProblemField) =>
-    result.ok ? [] : result.problems.filter((problem) => problem.field === field)
+    !result || result.ok ? [] : result.problems.filter((problem) => problem.field === field)
+
+  const changeWeight = (id: string, value: string) =>
+    setWeights((current) => current.map((entry) => (entry.id === id ? { ...entry, value } : entry)))
 
   const chooseRungCount = (next: number) => {
     setRungCount(next)
@@ -212,22 +370,24 @@ export const BuildLadder = ({ onConfirm }: { onConfirm: () => void }) => {
     setHorizon(next)
     // The horizon can pull published dates out from under already selected rungs —
     // then the count follows by itself instead of staying unreachable.
-    const allowed = maxRungs(CALENDAR, next)
+    const allowed = maxRungs(calendar, next)
     if (rungCount > allowed) chooseRungCount(allowed)
   }
 
-  const amountProblems = problemsIn('amount')
-  const weightProblems = problemsIn('weights')
-  const rungProblems = problemsIn('rungs')
+  const rungsHelper = priced
+    ? `Each rung must hold at least ${formatAmount(priced.market.minRungAmount, decimals)} ${symbol}. Up to ${MAX_RUNGS_PER_DEPOSIT} rungs fit in one signature; ${rungOptions.length} maturities are published within ${horizon} days.`
+    : 'Rungs cannot be chosen until the market is read.'
+
+  const rungProblems = problemsIn('rungs').map((problem) => problem.message)
 
   return (
     <div className="grid gap-4 lg:grid-cols-[minmax(340px,420px)_1fr]">
       <div className="space-y-4">
         <Panel
           title="Build ladder"
-          subtitle={`${treasury.name} · ${treasury.asset} on ${treasury.network}`}
+          subtitle={`${treasury.name} · ${symbol} on ${treasury.network}`}
         >
-          <FieldRow label="Amount" helper={`Available ${treasury.totalBalance} USDC`}>
+          <FieldRow label="Amount" helper={`Available ${treasury.totalBalance} ${treasury.asset}`}>
             <div className="flex items-center gap-2">
               <input
                 className="field"
@@ -236,7 +396,7 @@ export const BuildLadder = ({ onConfirm }: { onConfirm: () => void }) => {
                 aria-label="Amount in USDC"
                 onChange={(event) => setAmount(event.target.value)}
               />
-              <span className="text-sm text-muted-foreground">USDC</span>
+              <span className="text-sm text-muted-foreground">{symbol}</span>
             </div>
           </FieldRow>
 
@@ -249,14 +409,11 @@ export const BuildLadder = ({ onConfirm }: { onConfirm: () => void }) => {
             />
           </FieldRow>
 
-          <FieldRow
-            label="Rungs"
-            helper={`Each rung must hold at least ${MINIMUM_POSITION_SIZE_LABEL} USDC. Up to 11 rungs fit in one signature; ${rungOptions.length} maturities are published within ${horizon} days.`}
-          >
+          <FieldRow label="Rungs" helper={rungsHelper}>
             <SegmentedControl options={rungOptions} value={rungCount} onChange={chooseRungCount} />
             {rungProblems.length > 0 && (
               <p className="mt-2 text-xs" style={{ color: 'hsl(var(--caution))' }}>
-                {rungProblems.map((problem) => problem.message).join(' ')}
+                {rungProblems.join(' ')}
               </p>
             )}
           </FieldRow>
@@ -269,39 +426,11 @@ export const BuildLadder = ({ onConfirm }: { onConfirm: () => void }) => {
               format={(option) => (option === 'even' ? 'Even' : 'Custom weights')}
             />
             {distribution === 'weighted' && (
-              <>
-                <div className="mt-3 grid grid-cols-4 gap-2">
-                  {weights.map(({ id, value: weight }, index) => (
-                    <div key={id}>
-                      <label className="label-caps block" htmlFor={id}>
-                        Rung {index + 1}
-                      </label>
-                      <div className="mt-1 flex items-center gap-1">
-                        <input
-                          id={id}
-                          className="field"
-                          inputMode="decimal"
-                          value={weight}
-                          onChange={(event) => {
-                            const next = event.target.value
-                            setWeights((current) =>
-                              current.map((entry) =>
-                                entry.id === id ? { ...entry, value: next } : entry,
-                              ),
-                            )
-                          }}
-                        />
-                        <span className="text-xs text-muted-foreground">%</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                {weightProblems.length > 0 && (
-                  <p className="mt-2 text-xs" style={{ color: 'hsl(var(--caution))' }}>
-                    {weightProblems.map((problem) => problem.message).join(' ')}
-                  </p>
-                )}
-              </>
+              <WeightsGrid
+                weights={weights}
+                onChange={changeWeight}
+                problems={problemsIn('weights').map((problem) => problem.message)}
+              />
             )}
           </FieldRow>
 
@@ -334,74 +463,22 @@ export const BuildLadder = ({ onConfirm }: { onConfirm: () => void }) => {
           </FieldRow>
         </Panel>
 
-        <Panel
-          title="Pricing"
-          subtitle="Rates are published by an epoch operator before you confirm."
-        >
-          <div className="px-4 py-3 text-sm">
-            <div className="num">{epoch.operator}</div>
-            <div className="mt-1 text-xs text-muted-foreground">Rates set {epoch.ratesSetAt}</div>
-            <p className="mt-2 text-xs text-muted-foreground">{epoch.fixedNote}</p>
-          </div>
-        </Panel>
+        <RateDisclosure
+          rungs={plan?.rungs ?? []}
+          source={pricing.kind === 'chain' ? 'chain' : 'prototype'}
+        />
       </div>
 
-      <div className="space-y-4">
-        <Panel
-          title="Preview"
-          subtitle={`${distribution === 'even' ? 'Even split' : 'Custom weights'} · fee ${ladder.feeRate} (${ladder.feeBps}) · roll policy ${rollPolicy ? 'on' : 'off'}`}
-        >
-          {plan ? (
-            <RungTable
-              rungs={plan.rungs.map((rung) => toRow(rung, prototypeMarket.decimals))}
-              totals={{
-                deposited: formatAmountShown(plan.totals.deposited, prototypeMarket.decimals),
-                fee: formatAmountShown(plan.totals.fee, prototypeMarket.decimals),
-                working: formatAmountShown(plan.totals.working, prototypeMarket.decimals),
-                guaranteed: formatAmountShown(plan.totals.guaranteed, prototypeMarket.decimals),
-              }}
-            />
-          ) : (
-            <div className="px-4 py-6 text-sm text-muted-foreground">
-              <p>No schedule is priced for this configuration.</p>
-              <ul className="mt-2 space-y-1">
-                {(result.ok ? [] : result.problems).map((problem) => (
-                  <li key={problem.message}>{problem.message}</li>
-                ))}
-              </ul>
-              <p className="mt-2">
-                Nothing is estimated here — an unpriced ladder shows nothing rather than a guess.
-              </p>
-            </div>
-          )}
-        </Panel>
-
-        <Panel title="Summary" subtitle="What goes to work, before you sign.">
-          <SummaryRows plan={plan} decimals={prototypeMarket.decimals} />
-
-          <div className="border-t border-border px-4 py-4">
-            {amountProblems.length > 0 && (
-              <Problems messages={amountProblems.map((problem) => problem.message)} />
-            )}
-
-            <button
-              type="button"
-              disabled={plan === null}
-              onClick={onConfirm}
-              className="w-full rounded-sm px-4 py-2.5 text-sm font-semibold transition-opacity disabled:cursor-not-allowed disabled:opacity-40"
-              style={{
-                backgroundColor: 'hsl(var(--primary))',
-                color: 'hsl(var(--primary-foreground))',
-              }}
-            >
-              Deposit and build ladder — 1 signature
-            </button>
-            <p className="mt-2 text-xs text-muted-foreground">
-              All {rungCount} rungs are created in a single transaction.
-            </p>
-          </div>
-        </Panel>
-      </div>
+      <PreviewColumn
+        pricing={pricing}
+        result={result}
+        plan={plan}
+        decimals={decimals}
+        symbol={symbol}
+        distribution={distribution}
+        rollPolicy={rollPolicy}
+        onConfirm={onConfirm}
+      />
     </div>
   )
 }
