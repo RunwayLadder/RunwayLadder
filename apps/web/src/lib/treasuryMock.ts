@@ -46,6 +46,30 @@ export const PROTOTYPE_NOTICE = 'Prototype — mock data. Not connected to any n
 export const MINIMUM_POSITION_SIZE = 10000
 export const MINIMUM_POSITION_SIZE_LABEL = '10,000.00'
 
+/**
+ * Market parameters that live in `Market` on the network: the mint's decimals, the fee
+ * and the minimum rung size in base units. Here they are the prototype's — the form
+ * really computes with them, and T031 will substitute the account read from chain.
+ */
+export const prototypeMarket = {
+  symbol: 'USDC',
+  decimals: 6,
+  feeBps: 25,
+  minRungAmount: 10_000_000_000n,
+} as const
+
+/**
+ * Terms and rates that the epoch operator publishes on the network (FR-010). The form
+ * builds the ladder **from these dates**, not arbitrary ones: a date invented by the
+ * client would point at an epoch that does not exist. T030 replaces this list with epochs read from the network.
+ */
+export const publishedEpochs: { termDays: number; rateBps: number }[] = [
+  { termDays: 30, rateBps: 480 },
+  { termDays: 60, rateBps: 520 },
+  { termDays: 90, rateBps: 560 },
+  { termDays: 180, rateBps: 620 },
+]
+
 export const treasury = {
   name: 'Northwind Foundation',
   owner: 'Treasury Safe (3-of-5 multisig)',

@@ -41,6 +41,9 @@ importers:
       '@tanstack/react-query':
         specifier: 5.101.4
         version: 5.101.4(react@18.3.1)
+      '@treasury-runway/math':
+        specifier: workspace:^
+        version: link:../../packages/math
       '@treasury-runway/sdk':
         specifier: workspace:*
         version: link:../../packages/sdk

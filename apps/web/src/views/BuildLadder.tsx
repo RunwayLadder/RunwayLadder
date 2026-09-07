@@ -1,15 +1,25 @@
 import { type ReactNode, useMemo, useState } from 'react'
 import { Amount, Panel } from '@/components/Primitives'
 import { RungTable } from '@/components/RungTable'
+import { formatAmount, formatAmountShown, formatBps } from '@/lib/amount'
 import {
-  builderDefaults,
+  blendedNetRatePercent,
+  buildPlan,
+  evenWeightsBps,
+  maxRungs,
+  type Plan,
+  type PlanRung,
+  type ProblemField,
+  type PublishedEpoch,
+} from '@/lib/plan'
+import {
   epoch,
   ladder,
-  ladderTotals,
-  MINIMUM_POSITION_SIZE,
   MINIMUM_POSITION_SIZE_LABEL,
+  prototypeMarket,
+  publishedEpochs,
+  type Rung,
   rollPolicyCopy,
-  rungs,
   treasury,
 } from '@/lib/treasuryMock'
 
@@ -17,14 +27,47 @@ import {
 type Weight = { id: string; value: string }
 
 const HORIZONS = [30, 90, 180, 365] as const
-const RUNG_OPTIONS = [2, 3, 4, 6] as const
 
-/** Formats a whole-number USDC threshold for the rejection message. */
-const thresholdLabel = (value: number): string =>
-  value.toLocaleString('en-US', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })
+/**
+ * The prototype calendar's dates are counted from page load and do not
+ * drift until it is reloaded. On the network they are set by the epoch operator, and it is
+ * their dates that T030 will substitute — here they are merely plausible.
+ */
+const NOW_SECONDS = BigInt(Math.floor(Date.now() / 1000))
+
+const CALENDAR: PublishedEpoch[] = publishedEpochs.map((entry) => ({
+  ...entry,
+  maturityTs: NOW_SECONDS + BigInt(entry.termDays * 86_400),
+}))
+
+const isoDate = (maturityTs: bigint): string =>
+  new Date(Number(maturityTs) * 1000).toISOString().slice(0, 10)
+
+const weightsFor = (rungCount: number): Weight[] =>
+  evenWeightsBps(rungCount).map((bps, index) => ({
+    id: `weight-rung-${index + 1}`,
+    value: (bps / 100).toFixed(2),
+  }))
+
+/**
+ * A table row from a computed rung. The format is the same as in the M0 prototype,
+ * because the table is still shared by the preview and the dashboard; T031 replaces it
+ * with a view made from `LadderView`.
+ */
+const toRow = (rung: PlanRung, decimals: number): Rung => ({
+  index: rung.index,
+  id: `plan-rung-${rung.index}`,
+  term: `${rung.termDays} d`,
+  termDays: rung.termDays,
+  maturity: isoDate(rung.maturityTs),
+  fixedRate: formatBps(rung.rateBps),
+  deposited: formatAmountShown(rung.deposited, decimals),
+  fee: formatAmountShown(rung.fee, decimals),
+  working: formatAmountShown(rung.working, decimals),
+  guaranteed: formatAmountShown(rung.guaranteed, decimals),
+  status: 'Active',
+  countdown: `${rung.termDays} days to maturity`,
+})
 
 const FieldRow = ({
   label,
@@ -91,55 +134,91 @@ const SummaryRow = ({
  * An unpriced configuration shows a dash, not an estimate: a figure here is a promise,
  * and an approximate promise is worse than none.
  */
-const SummaryRows = ({ priced }: { priced: boolean }) => {
-  const money = (value: string) => (priced ? value : '—')
-  const unit = priced ? 'USDC' : null
+const SummaryRows = ({ plan, decimals }: { plan: Plan | null; decimals: number }) => {
+  const money = (value: bigint) => (plan ? formatAmount(value, decimals) : '—')
+  const unit = plan ? 'USDC' : null
+  const totals = plan?.totals
 
   return (
     <div className="px-4 py-2">
-      <SummaryRow label="Total fee" value={money(ladderTotals.fee)} unit={unit} />
-      <SummaryRow label="Working capital" value={money(ladderTotals.working)} unit={unit} />
+      <SummaryRow label="Total fee" value={money(totals?.fee ?? 0n)} unit={unit} />
+      <SummaryRow label="Working capital" value={money(totals?.working ?? 0n)} unit={unit} />
       <SummaryRow
         label="Guaranteed at maturity"
-        value={money(ladderTotals.guaranteed)}
+        value={money(totals?.guaranteed ?? 0n)}
         unit={unit}
       />
-      <SummaryRow label="Net gain" value={money(ladderTotals.netGain)} unit={unit} />
-      <SummaryRow label="Blended net rate" value={money(ladderTotals.blendedNetRate)} unit={null} />
+      <SummaryRow label="Net gain" value={money(totals?.netGain ?? 0n)} unit={unit} />
+      <SummaryRow
+        label="Blended net rate"
+        value={plan ? `${blendedNetRatePercent(plan).toFixed(2)}%` : '—'}
+        unit={null}
+      />
     </div>
   )
 }
 
+const Problems = ({ messages }: { messages: readonly string[] }) => (
+  <div
+    className="mb-3 space-y-1 rounded-sm border px-3 py-2 text-sm"
+    style={{ borderColor: 'hsl(var(--caution))', color: 'hsl(var(--caution))' }}
+    role="alert"
+  >
+    {messages.map((message) => (
+      <p key={message}>{message}</p>
+    ))}
+  </div>
+)
+
 export const BuildLadder = ({ onConfirm }: { onConfirm: () => void }) => {
-  const [amount, setAmount] = useState(builderDefaults.amount)
-  const [horizon, setHorizon] = useState<number>(builderDefaults.horizonDays)
-  const [rungCount, setRungCount] = useState<number>(builderDefaults.rungs)
-  const [distribution, setDistribution] = useState<'Even' | 'Custom weights'>(
-    builderDefaults.distribution,
+  const [amount, setAmount] = useState('1000000')
+  const [horizon, setHorizon] = useState<number>(180)
+  const [rungCount, setRungCount] = useState<number>(4)
+  const [distribution, setDistribution] = useState<'even' | 'weighted'>('even')
+  const [weights, setWeights] = useState<Weight[]>(() => weightsFor(4))
+  const [rollPolicy, setRollPolicy] = useState(false)
+
+  const rungOptions = useMemo(
+    () => Array.from({ length: maxRungs(CALENDAR, horizon) }, (_, index) => index + 1),
+    [horizon],
   )
-  const [weights, setWeights] = useState<Weight[]>(() =>
-    builderDefaults.weights.map((value, index) => ({
-      id: `weight-rung-${index + 1}`,
-      value,
-    })),
+
+  const result = useMemo(
+    () =>
+      buildPlan(
+        {
+          amount,
+          horizonDays: horizon,
+          rungCount,
+          distribution,
+          weights: weights.map((entry) => entry.value),
+        },
+        prototypeMarket,
+        CALENDAR,
+      ),
+    [amount, horizon, rungCount, distribution, weights],
   )
-  const [rollPolicy, setRollPolicy] = useState(builderDefaults.rollPolicy)
 
-  const numericAmount = useMemo(() => {
-    const parsed = Number(amount.replace(/[,\s]/g, ''))
-    return Number.isFinite(parsed) ? parsed : 0
-  }, [amount])
+  const plan = result.ok ? result.plan : null
+  const problemsIn = (field: ProblemField) =>
+    result.ok ? [] : result.problems.filter((problem) => problem.field === field)
 
-  const perRung = rungCount > 0 ? numericAmount / rungCount : 0
-  const belowMinimum = perRung < MINIMUM_POSITION_SIZE
-  const requiredTotal = thresholdLabel(rungCount * MINIMUM_POSITION_SIZE)
+  const chooseRungCount = (next: number) => {
+    setRungCount(next)
+    setWeights(weightsFor(next))
+  }
 
-  const evenWeights = weights.every(({ value }) => value.trim() === '25')
-  const isReferenceLadder =
-    numericAmount === 1_000_000 &&
-    rungCount === 4 &&
-    horizon === 180 &&
-    (distribution === 'Even' || evenWeights)
+  const chooseHorizon = (next: number) => {
+    setHorizon(next)
+    // The horizon can pull published dates out from under already selected rungs —
+    // then the count follows by itself instead of staying unreachable.
+    const allowed = maxRungs(CALENDAR, next)
+    if (rungCount > allowed) chooseRungCount(allowed)
+  }
+
+  const amountProblems = problemsIn('amount')
+  const weightProblems = problemsIn('weights')
+  const rungProblems = problemsIn('rungs')
 
   return (
     <div className="grid gap-4 lg:grid-cols-[minmax(340px,420px)_1fr]">
@@ -148,7 +227,7 @@ export const BuildLadder = ({ onConfirm }: { onConfirm: () => void }) => {
           title="Build ladder"
           subtitle={`${treasury.name} · ${treasury.asset} on ${treasury.network}`}
         >
-          <FieldRow label="Amount" helper={`Available ${builderDefaults.availableLabel} USDC`}>
+          <FieldRow label="Amount" helper={`Available ${treasury.totalBalance} USDC`}>
             <div className="flex items-center gap-2">
               <input
                 className="field"
@@ -165,51 +244,64 @@ export const BuildLadder = ({ onConfirm }: { onConfirm: () => void }) => {
             <SegmentedControl
               options={HORIZONS}
               value={horizon}
-              onChange={setHorizon}
+              onChange={chooseHorizon}
               format={(option) => `${option} d`}
             />
           </FieldRow>
 
           <FieldRow
             label="Rungs"
-            helper={`Each rung must hold at least ${MINIMUM_POSITION_SIZE_LABEL} USDC.`}
+            helper={`Each rung must hold at least ${MINIMUM_POSITION_SIZE_LABEL} USDC. Up to 11 rungs fit in one signature; ${rungOptions.length} maturities are published within ${horizon} days.`}
           >
-            <SegmentedControl options={RUNG_OPTIONS} value={rungCount} onChange={setRungCount} />
+            <SegmentedControl options={rungOptions} value={rungCount} onChange={chooseRungCount} />
+            {rungProblems.length > 0 && (
+              <p className="mt-2 text-xs" style={{ color: 'hsl(var(--caution))' }}>
+                {rungProblems.map((problem) => problem.message).join(' ')}
+              </p>
+            )}
           </FieldRow>
 
           <FieldRow label="Distribution">
             <SegmentedControl
-              options={['Even', 'Custom weights'] as const}
+              options={['even', 'weighted'] as const}
               value={distribution}
               onChange={setDistribution}
+              format={(option) => (option === 'even' ? 'Even' : 'Custom weights')}
             />
-            {distribution === 'Custom weights' && (
-              <div className="mt-3 grid grid-cols-4 gap-2">
-                {weights.map(({ id, value: weight }, index) => (
-                  <div key={id}>
-                    <label className="label-caps block" htmlFor={id}>
-                      Rung {index + 1}
-                    </label>
-                    <div className="mt-1 flex items-center gap-1">
-                      <input
-                        id={id}
-                        className="field"
-                        inputMode="decimal"
-                        value={weight}
-                        onChange={(event) => {
-                          const next = event.target.value
-                          setWeights((current) =>
-                            current.map((entry) =>
-                              entry.id === id ? { ...entry, value: next } : entry,
-                            ),
-                          )
-                        }}
-                      />
-                      <span className="text-xs text-muted-foreground">%</span>
+            {distribution === 'weighted' && (
+              <>
+                <div className="mt-3 grid grid-cols-4 gap-2">
+                  {weights.map(({ id, value: weight }, index) => (
+                    <div key={id}>
+                      <label className="label-caps block" htmlFor={id}>
+                        Rung {index + 1}
+                      </label>
+                      <div className="mt-1 flex items-center gap-1">
+                        <input
+                          id={id}
+                          className="field"
+                          inputMode="decimal"
+                          value={weight}
+                          onChange={(event) => {
+                            const next = event.target.value
+                            setWeights((current) =>
+                              current.map((entry) =>
+                                entry.id === id ? { ...entry, value: next } : entry,
+                              ),
+                            )
+                          }}
+                        />
+                        <span className="text-xs text-muted-foreground">%</span>
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+                {weightProblems.length > 0 && (
+                  <p className="mt-2 text-xs" style={{ color: 'hsl(var(--caution))' }}>
+                    {weightProblems.map((problem) => problem.message).join(' ')}
+                  </p>
+                )}
+              </>
             )}
           </FieldRow>
 
@@ -257,54 +349,44 @@ export const BuildLadder = ({ onConfirm }: { onConfirm: () => void }) => {
       <div className="space-y-4">
         <Panel
           title="Preview"
-          subtitle={`Even split · fee ${ladder.feeRate} (${ladder.feeBps}) · roll policy ${rollPolicy ? 'on' : 'off'}`}
+          subtitle={`${distribution === 'even' ? 'Even split' : 'Custom weights'} · fee ${ladder.feeRate} (${ladder.feeBps}) · roll policy ${rollPolicy ? 'on' : 'off'}`}
         >
-          {isReferenceLadder ? (
+          {plan ? (
             <RungTable
-              rungs={rungs}
+              rungs={plan.rungs.map((rung) => toRow(rung, prototypeMarket.decimals))}
               totals={{
-                deposited: ladderTotals.deposited,
-                fee: ladderTotals.fee,
-                working: ladderTotals.working,
-                guaranteed: ladderTotals.guaranteed,
+                deposited: formatAmountShown(plan.totals.deposited, prototypeMarket.decimals),
+                fee: formatAmountShown(plan.totals.fee, prototypeMarket.decimals),
+                working: formatAmountShown(plan.totals.working, prototypeMarket.decimals),
+                guaranteed: formatAmountShown(plan.totals.guaranteed, prototypeMarket.decimals),
               }}
             />
           ) : (
             <div className="px-4 py-6 text-sm text-muted-foreground">
-              <p>
-                Epoch pricing in this prototype is published for one configuration only:{' '}
-                <span className="num text-foreground">1,000,000.00 USDC</span>, 4 rungs, 180-day
-                horizon, even split.
-              </p>
+              <p>No schedule is priced for this configuration.</p>
+              <ul className="mt-2 space-y-1">
+                {(result.ok ? [] : result.problems).map((problem) => (
+                  <li key={problem.message}>{problem.message}</li>
+                ))}
+              </ul>
               <p className="mt-2">
-                Return the form to those values to see the priced schedule. No figures are estimated
-                here — an unpriced ladder shows nothing rather than a guess.
+                Nothing is estimated here — an unpriced ladder shows nothing rather than a guess.
               </p>
             </div>
           )}
         </Panel>
 
         <Panel title="Summary" subtitle="What goes to work, before you sign.">
-          <SummaryRows priced={isReferenceLadder} />
+          <SummaryRows plan={plan} decimals={prototypeMarket.decimals} />
 
           <div className="border-t border-border px-4 py-4">
-            {belowMinimum && (
-              <p
-                className="mb-3 rounded-sm border px-3 py-2 text-sm"
-                style={{
-                  borderColor: 'hsl(var(--caution))',
-                  color: 'hsl(var(--caution))',
-                }}
-                role="alert"
-              >
-                Minimum position size is {MINIMUM_POSITION_SIZE_LABEL} USDC per rung. {rungCount}{' '}
-                rungs require at least {requiredTotal} USDC. No funds have been moved.
-              </p>
+            {amountProblems.length > 0 && (
+              <Problems messages={amountProblems.map((problem) => problem.message)} />
             )}
 
             <button
               type="button"
-              disabled={belowMinimum || !isReferenceLadder}
+              disabled={plan === null}
               onClick={onConfirm}
               className="w-full rounded-sm px-4 py-2.5 text-sm font-semibold transition-opacity disabled:cursor-not-allowed disabled:opacity-40"
               style={{
@@ -315,7 +397,7 @@ export const BuildLadder = ({ onConfirm }: { onConfirm: () => void }) => {
               Deposit and build ladder — 1 signature
             </button>
             <p className="mt-2 text-xs text-muted-foreground">
-              All four rungs are created in a single transaction.
+              All {rungCount} rungs are created in a single transaction.
             </p>
           </div>
         </Panel>

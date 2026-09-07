@@ -111,7 +111,9 @@ export const RungTable = ({
       )}
     </table>
     <p className="border-t border-border px-3 py-2 text-xs text-muted-foreground">
-      Every rate above was set by {epoch.operator} at {epoch.ratesSetAt}. {epoch.fixedNote}
+      Every rate above was set by {epoch.operator} at {epoch.ratesSetAt}. {epoch.fixedNote} Amounts
+      are shown to the cent; “…” marks a figure the display truncates — the signed amount is exact
+      to the last unit of the mint.
     </p>
   </div>
 )
