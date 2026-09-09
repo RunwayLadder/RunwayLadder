@@ -1,5 +1,5 @@
 import { Amount, StatusBadge } from '@/components/Primitives'
-import type { Rung } from '@/lib/treasuryMock'
+import type { RungRecord } from '@/lib/rungRecord'
 
 const th = 'px-3 py-2 text-left align-bottom label-caps font-medium'
 const thNum = `${th} text-right`
@@ -11,8 +11,8 @@ export const RungTable = ({
   onSelect,
   totals,
 }: {
-  rungs: Rung[]
-  onSelect?: (rung: Rung) => void
+  rungs: readonly RungRecord[]
+  onSelect?: (rung: RungRecord) => void
   totals?: {
     deposited: string
     fee: string

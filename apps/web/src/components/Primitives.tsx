@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import type { RungStatus } from '@/lib/treasuryMock'
+import type { StatusLabel } from '@/lib/rungRecord'
 
 /** Pre-formatted amount. Never recomputed — the string is rendered verbatim. */
 export const Amount = ({
@@ -66,14 +66,14 @@ export const StatTile = ({
   </div>
 )
 
-const statusStyle: Record<RungStatus, string> = {
+const statusStyle: Record<StatusLabel, string> = {
   Active: 'border-border text-foreground',
   Redeemed: 'border-border text-muted-foreground',
   'Redeemed with deficit': 'border-[hsl(var(--caution))] text-[hsl(var(--caution))]',
   Exited: 'border-border text-muted-foreground',
 }
 
-export const StatusBadge = ({ status }: { status: RungStatus }) => (
+export const StatusBadge = ({ status }: { status: StatusLabel }) => (
   <span
     className={`inline-flex items-center whitespace-nowrap rounded-sm border px-1.5 py-0.5 text-[0.6875rem] font-medium tracking-wide ${statusStyle[status]}`}
   >

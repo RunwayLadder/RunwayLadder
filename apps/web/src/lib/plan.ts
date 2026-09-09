@@ -18,6 +18,8 @@ export const SECONDS_PER_DAY = 86_400
 export type MarketParams = {
   /** Asset symbol for explanations. The logic does not rely on it (FR-001). */
   readonly symbol: string
+  /** The base yield source in words (FR-009b) — the same for all rungs. */
+  readonly source: string
   readonly decimals: number
   readonly feeBps: number
   readonly minRungAmount: bigint

@@ -11,6 +11,7 @@ import { useEpochs, useMarketParams } from '@/lib/chain'
 import { liveNetwork } from '@/lib/network'
 import type { PublishedEpoch } from '@/lib/plan'
 import { type Pricing, upcoming } from '@/lib/pricing'
+import { sourceLabel } from '@/lib/rungRecord'
 import {
   PROTOTYPE_OPERATOR,
   PROTOTYPE_RATES_SET_AT,
@@ -74,6 +75,7 @@ function fromChain(market: MarketQuery, epochs: EpochsQuery): Pricing {
       // A short form of the address invents nothing — unlike "USDC"
       // written under an arbitrary mint.
       symbol: shortMint(market.data.market.assetMint.toBase58()),
+      source: sourceLabel(market.data.market),
       decimals: market.data.decimals,
       feeBps: market.data.market.feeBps,
       minRungAmount: market.data.market.minRungAmount,

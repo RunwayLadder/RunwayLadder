@@ -13,6 +13,7 @@ import {
 
 const market: MarketParams = {
   symbol: 'USDC',
+  source: 'Deterministic Adapter · demo',
   decimals: 6,
   feeBps: 25,
   minRungAmount: 10_000_000_000n,

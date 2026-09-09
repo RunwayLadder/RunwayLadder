@@ -8,7 +8,10 @@
  * No network calls, no chain reads. This file is the only source of truth.
  */
 
-export type RungStatus = 'Active' | 'Redeemed' | 'Redeemed with deficit' | 'Exited'
+import type { RungRecord, StatusLabel } from '@/lib/rungRecord'
+
+/** An alias, not a second copy of the union: they have no right to drift apart. */
+export type RungStatus = StatusLabel
 
 export type YieldSource = 'Deterministic Adapter · demo' | 'Stablecoin Lending Adapter'
 
@@ -53,6 +56,7 @@ export const MINIMUM_POSITION_SIZE_LABEL = '10,000.00'
  */
 export const prototypeMarket = {
   symbol: 'USDC',
+  source: 'Deterministic Adapter · demo',
   decimals: 6,
   feeBps: 25,
   minRungAmount: 10_000_000_000n,
@@ -328,4 +332,24 @@ export const builderDefaults = {
   distribution: 'Even' as 'Even' | 'Custom weights',
   weights: ['25', '25', '25', '25'] as [string, string, string, string],
   rollPolicy: false,
+}
+
+/**
+ * Prototype rungs in the same shape as those read from the network. The operator,
+ * the moment and the source are added here rather than in every record: in the prototype
+ * they are identical by construction, and scattered copies drift apart first.
+ */
+export const prototypeRecords: RungRecord[] = rungs.map((rung) => ({
+  ...rung,
+  operator: PROTOTYPE_OPERATOR,
+  ratesSetAt: epoch.ratesSetAt,
+  yieldSource: ladder.yieldSource,
+}))
+
+/** The same second rung, shown as redeemed with a deficit. A preview of M2 state. */
+export const prototypeDeficitRecord: RungRecord = {
+  ...rungTwoWithDeficit,
+  operator: PROTOTYPE_OPERATOR,
+  ratesSetAt: epoch.ratesSetAt,
+  yieldSource: ladder.yieldSource,
 }

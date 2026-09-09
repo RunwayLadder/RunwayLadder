@@ -15,7 +15,8 @@ import {
   type ProblemField,
 } from '@/lib/plan'
 import type { Pricing } from '@/lib/pricing'
-import { type Rung, rollPolicyCopy, treasury } from '@/lib/treasuryMock'
+import type { RungRecord } from '@/lib/rungRecord'
+import { rollPolicyCopy, treasury } from '@/lib/treasuryMock'
 import { usePricing } from '@/lib/usePricing'
 
 /** A stable `id` instead of an index: the key and `htmlFor` must not depend on position. */
@@ -37,7 +38,10 @@ const weightsFor = (rungCount: number): Weight[] =>
  * because the table is still shared by the preview and the dashboard; T031 replaces it
  * with a view made from `LadderView`.
  */
-const toRow = (rung: PlanRung, decimals: number): Rung => ({
+const isoStamp = (seconds: bigint): string =>
+  `${new Date(Number(seconds) * 1000).toISOString().slice(0, 16).replace('T', ' ')} UTC`
+
+const toRow = (rung: PlanRung, decimals: number, source: string): RungRecord => ({
   index: rung.index,
   id: `plan-rung-${rung.index}`,
   term: `${rung.epoch.termDays} d`,
@@ -50,6 +54,9 @@ const toRow = (rung: PlanRung, decimals: number): Rung => ({
   guaranteed: formatAmountShown(rung.guaranteed, decimals),
   status: 'Active',
   countdown: `${rung.epoch.termDays} days to maturity`,
+  operator: rung.epoch.operator,
+  ratesSetAt: isoStamp(rung.epoch.ratesSetAt),
+  yieldSource: source,
 })
 
 const FieldRow = ({
@@ -281,7 +288,7 @@ const PreviewColumn = ({
       >
         {plan ? (
           <RungTable
-            rungs={plan.rungs.map((rung) => toRow(rung, decimals))}
+            rungs={plan.rungs.map((rung) => toRow(rung, decimals, priced?.market.source ?? ''))}
             totals={{
               deposited: formatAmountShown(plan.totals.deposited, decimals),
               fee: formatAmountShown(plan.totals.fee, decimals),

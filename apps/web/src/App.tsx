@@ -1,6 +1,9 @@
 import { useState } from 'react'
 import { NetworkNotice } from '@/components/NetworkNotice'
-import { ladder, type Rung, rungs, treasury } from '@/lib/treasuryMock'
+import { Panel } from '@/components/Primitives'
+import { liveNetwork } from '@/lib/network'
+import type { RungRecord } from '@/lib/rungRecord'
+import { activityLog, ladder, prototypeDeficitRecord, treasury } from '@/lib/treasuryMock'
 import { BuildLadder } from '@/views/BuildLadder'
 import { LadderDashboard } from '@/views/LadderDashboard'
 import { RungDetail } from '@/views/RungDetail'
@@ -16,9 +19,9 @@ const NAV: { id: View; label: string }[] = [
 
 const App = () => {
   const [view, setView] = useState<View>('build')
-  const [selectedRung, setSelectedRung] = useState<Rung>(rungs[0])
+  const [selectedRung, setSelectedRung] = useState<RungRecord | null>(null)
 
-  const openRung = (rung: Rung) => {
+  const openRung = (rung: RungRecord) => {
     setSelectedRung(rung)
     setView('detail')
   }
@@ -76,9 +79,24 @@ const App = () => {
       <main className="mx-auto max-w-[1440px] px-4 py-5 md:px-6">
         {view === 'build' && <BuildLadder onConfirm={() => setView('dashboard')} />}
         {view === 'dashboard' && <LadderDashboard onOpenRung={openRung} />}
-        {view === 'detail' && (
-          <RungDetail rung={selectedRung} onBack={() => setView('dashboard')} />
-        )}
+        {view === 'detail' &&
+          (selectedRung ? (
+            <RungDetail
+              rung={selectedRung}
+              // The deficit preview exists only for the prototype: there is no redemption in M1,
+              // and on a live rung this toggle would show a state that never happened.
+              {...(liveNetwork
+                ? {}
+                : { deficitPreview: prototypeDeficitRecord, activity: activityLog })}
+              onBack={() => setView('dashboard')}
+            />
+          ) : (
+            <Panel title="Rung detail">
+              <p className="px-4 py-6 text-sm text-muted-foreground">
+                Select a rung on the ladder screen to open its record.
+              </p>
+            </Panel>
+          ))}
       </main>
     </div>
   )
