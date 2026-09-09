@@ -1,10 +1,12 @@
 import { useWallet } from '@solana/wallet-adapter-react'
+import { type CashflowForecast, projectCashflow } from '@treasury-runway/math'
 import { useState } from 'react'
-import { InflowChart } from '@/components/InflowChart'
+import { CashflowChart } from '@/components/CashflowChart'
 import { FIRST_LADDER_SEED } from '@/components/NetworkNotice'
 import { Panel, StatTile } from '@/components/Primitives'
 import { RungTable } from '@/components/RungTable'
 import { useLadder, useMarketParams } from '@/lib/chain'
+import { NO_FLOATING, PROTOTYPE_FLOATING, prototypeInflows, toInflows } from '@/lib/inflows'
 import { liveNetwork } from '@/lib/network'
 import {
   type LadderTotals,
@@ -71,7 +73,8 @@ const LadderPanels = ({
   totals,
   source,
   symbol,
-  chart,
+  decimals,
+  forecast,
   onOpenRung,
 }: {
   title: string
@@ -80,7 +83,8 @@ const LadderPanels = ({
   totals: LadderTotals
   source: string
   symbol: string
-  chart: boolean
+  decimals: number
+  forecast: CashflowForecast
   onOpenRung: (rung: RungRecord) => void
 }) => {
   const [rollPolicy, setRollPolicy] = useState(false)
@@ -100,14 +104,12 @@ const LadderPanels = ({
         />
       </div>
 
-      {chart && (
-        <Panel
-          title="Inflow schedule"
-          subtitle="Sep 2026 → Aug 2027 · guaranteed versus floating estimate"
-        >
-          <InflowChart />
-        </Panel>
-      )}
+      <Panel
+        title="Inflow schedule"
+        subtitle="Twelve months ahead · guaranteed versus floating estimate"
+      >
+        <CashflowChart forecast={forecast} decimals={decimals} symbol={symbol} />
+      </Panel>
 
       <Panel title={title} subtitle={subtitle}>
         <RollPolicyRow value={rollPolicy} onToggle={() => setRollPolicy((current) => !current)} />
@@ -158,7 +160,13 @@ const PrototypeDashboard = ({ onOpenRung }: { onOpenRung: (rung: RungRecord) => 
     }}
     source={prototypeMarket.source}
     symbol={prototypeMarket.symbol}
-    chart
+    decimals={prototypeMarket.decimals}
+    forecast={projectCashflow({
+      fromTs: Number(NOW_SECONDS),
+      months: 12,
+      rungs: prototypeInflows(Number(NOW_SECONDS)),
+      floating: PROTOTYPE_FLOATING,
+    })}
     onOpenRung={onOpenRung}
   />
 )
@@ -204,7 +212,15 @@ const ChainDashboard = ({ onOpenRung }: { onOpenRung: (rung: RungRecord) => void
       totals={toLadderTotals(view, decimals)}
       source={sourceLabel(market.data.market)}
       symbol={`${market.data.market.assetMint.toBase58().slice(0, 4)}…${market.data.market.assetMint.toBase58().slice(-4)}`}
-      chart={false}
+      decimals={decimals}
+      // The floating part on the network is unknown: the treasury wallet balance is not
+      // the same state, and the dashboard does not read it. A zero here is more honest than an estimate.
+      forecast={projectCashflow({
+        fromTs: Number(NOW_SECONDS),
+        months: 12,
+        rungs: toInflows(view),
+        floating: NO_FLOATING,
+      })}
       onOpenRung={onOpenRung}
     />
   )
