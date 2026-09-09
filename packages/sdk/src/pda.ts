@@ -1,3 +1,4 @@
+import { utils } from '@coral-xyz/anchor'
 import { PublicKey } from '@solana/web3.js'
 
 /**
@@ -72,4 +73,19 @@ export function ladderAddress(programId: PublicKey, owner: PublicKey, seed: bigi
  */
 export function rungAddress(programId: PublicKey, ladder: PublicKey, epoch: PublicKey): PublicKey {
   return PublicKey.findProgramAddressSync([RUNG, ladder.toBuffer(), epoch.toBuffer()], programId)[0]
+}
+
+/**
+ * The owner's associated token account for the mint.
+ *
+ * The deposit takes **any** treasury token account: the program checks
+ * the mint and the owner (`token::mint`, `token::authority`), not the address. This is only
+ * the dashboard's default assumption — wallets show exactly the ATA, and that is
+ * what the treasurer will pay from unless they name another account explicitly.
+ *
+ * The derivation comes from `@coral-xyz/anchor` rather than being rewritten: the same three
+ * seeds under the same program, only verified by someone other than us.
+ */
+export function associatedTokenAddress(owner: PublicKey, mint: PublicKey): PublicKey {
+  return utils.token.associatedAddress({ owner, mint })
 }

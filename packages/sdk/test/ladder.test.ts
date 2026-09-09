@@ -1,12 +1,20 @@
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { BorshInstructionCoder, type Idl } from '@coral-xyz/anchor'
-import { type AccountInfo, PublicKey } from '@solana/web3.js'
+import {
+  type AccountInfo,
+  ComputeBudgetProgram,
+  PublicKey,
+  Transaction,
+  type TransactionInstruction,
+} from '@solana/web3.js'
 import { describe, expect, it } from 'vitest'
 import { PROGRAM_ID } from '../src/accounts.js'
 import idl from '../src/idl/treasury_runway.json' with { type: 'json' }
 import {
   buildLadderDeposit,
+  buildLadderSetup,
+  buildOpenLadder,
   fetchLadder,
   type LadderReader,
   MAX_RUNGS_PER_DEPOSIT,
@@ -128,6 +136,135 @@ describe('buildLadderDeposit', () => {
 
   it('refuses an empty deposit', () => {
     expect(() => buildLadderDeposit({ ...base, amount: 0n })).toThrow(/greater than zero/)
+  })
+})
+
+describe('buildOpenLadder', () => {
+  const open = buildOpenLadder({ owner, market, seed, rollPolicy: 'none' })
+
+  it('puts the accounts in the order the program declares them', () => {
+    // The order in `OpenLadder<'info>`: owner, market, ladder, system program.
+    expect(open.keys.map((k) => k.pubkey.toBase58())).toEqual([
+      owner.toBase58(),
+      market.toBase58(),
+      ladderAddress(PROGRAM_ID, owner, seed).toBase58(),
+      '11111111111111111111111111111111',
+    ])
+  })
+
+  it('signs with the owner and with nobody else', () => {
+    // The owner is part of the ladder seeds, so a foreign signature does not open a ladder at
+    // someone else's address — and there is no second signer in the instruction at all.
+    const signers = open.keys.filter((k) => k.isSigner)
+    expect(signers).toHaveLength(1)
+    expect(signers[0]?.pubkey.toBase58()).toBe(owner.toBase58())
+  })
+
+  it('encodes the seed and the policy the program will read back', () => {
+    const decoded = new BorshInstructionCoder(idl as Idl).decode(open.data)
+    const args = decoded?.data as { seed: { toString(): string }; roll_policy: unknown }
+
+    expect(decoded?.name).toBe('open_ladder')
+    expect(args.seed.toString()).toBe(seed.toString())
+    expect(args.roll_policy).toEqual({ None: {} })
+  })
+
+  it('carries the rolling policy through as its own variant', () => {
+    // `none` and `roll` are different promises to the treasurer (FR-014), and silently
+    // collapsing one into the other would mean a roll they never asked for.
+    const rolling = buildOpenLadder({ owner, market, seed, rollPolicy: 'roll' })
+    const decoded = new BorshInstructionCoder(idl as Idl).decode(rolling.data)
+    const args = decoded?.data as { roll_policy: unknown }
+
+    expect(args.roll_policy).toEqual({ Roll: {} })
+  })
+})
+
+/**
+ * The size of the signed transaction the way the network counts it: the serialised
+ * message plus one signature (64 bytes and a count byte).
+ */
+function packetBytes(instructions: TransactionInstruction[]): number {
+  const tx = new Transaction()
+  tx.add(...instructions)
+  tx.feePayer = owner
+  tx.recentBlockhash = '11111111111111111111111111111111'
+
+  return tx.compileMessage().serialize().length + 65
+}
+
+/** A deposit across `rungs` rungs with dates that do not coincide. */
+function setupOf(rungs: number) {
+  return {
+    ...base,
+    rollPolicy: 'none' as const,
+    distribution: { kind: 'even', rungs } as const,
+    maturities: Array.from({ length: rungs }, (_, i) => 1_800_000_000n + BigInt(i) * 86_400n),
+  }
+}
+
+describe('buildLadderSetup', () => {
+  const instructions = buildLadderSetup({ ...base, rollPolicy: 'roll' })
+
+  it('opens the ladder and funds it in one signature', () => {
+    // With two signatures there would be a state between them, "ladder exists, no funds in it":
+    // rent paid, dashboard empty. FR-005 promises a single action.
+    expect(instructions).toHaveLength(3)
+    expect(instructions[0]?.programId.toBase58()).toBe(
+      'ComputeBudget111111111111111111111111111111',
+    )
+
+    const coder = new BorshInstructionCoder(idl as Idl)
+    expect(coder.decode(instructions[1]?.data ?? Buffer.alloc(0))?.name).toBe('open_ladder')
+    expect(coder.decode(instructions[2]?.data ?? Buffer.alloc(0))?.name).toBe('ladder_deposit')
+  })
+
+  it('points both instructions at the same ladder', () => {
+    // The ladder address is not a parameter of either: both derive it from the
+    // same owner and number, so there is nothing for them to diverge on.
+    const ladder = ladderAddress(PROGRAM_ID, owner, seed).toBase58()
+    expect(instructions[1]?.keys[2]?.pubkey.toBase58()).toBe(ladder)
+    expect(instructions[2]?.keys[2]?.pubkey.toBase58()).toBe(ladder)
+  })
+
+  it('asks for more compute than the deposit alone', () => {
+    // The limit applies to the transaction, not the instruction: opening the ladder
+    // spends compute from the same ceiling.
+    const units = (ix: TransactionInstruction | undefined): number => {
+      if (!ix) throw new Error('budget instruction')
+
+      // `SetComputeUnitLimit`: the variant byte, then the limit as u32.
+      return ix.data.readUInt32LE(1)
+    }
+
+    expect(units(instructions[0])).toBeGreaterThan(units(buildLadderDeposit(base)[0]))
+  })
+
+  it('still fits in one packet at the ceiling, priority fee included', () => {
+    // The rung ceiling does not drop because of opening the ladder: the four
+    // `open_ladder` accounts are already in the deposit message, so the instruction costs
+    // only itself. Measured, not estimated — this is the same lock that
+    // `deposit_limits.rs` holds on the Rust side.
+    const ceiling = buildLadderSetup(setupOf(MAX_RUNGS_PER_DEPOSIT))
+    const withPriority = [
+      ...ceiling,
+      ComputeBudgetProgram.setComputeUnitPrice({ microLamports: 1 }),
+    ]
+
+    expect(packetBytes(ceiling)).toBeLessThanOrEqual(1232)
+    expect(packetBytes(withPriority)).toBeLessThanOrEqual(1232)
+  })
+
+  it('refuses a ladder that would not fit in one signature', () => {
+    expect(() => buildLadderSetup(setupOf(MAX_RUNGS_PER_DEPOSIT + 1))).toThrow(/do not fit/)
+  })
+
+  it('refuses an empty deposit before it opens anything', () => {
+    // A refusal here leaves no open ladder behind: the instruction does not exist
+    // until the checks have passed.
+    expect(() => buildLadderSetup({ ...base, rollPolicy: 'none', amount: 0n })).toThrow(
+      /greater than zero/,
+    )
   })
 })
 

@@ -14,6 +14,7 @@ import {
   type Epoch,
   type Ladder,
   PROGRAM_ID,
+  type RollPolicy,
   type Rung,
   rungDiscriminator,
 } from './accounts.js'
@@ -35,6 +36,11 @@ const TOKEN_PROGRAM_ID = new PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ
  * How many rungs fit in one signature. Measured, not estimated:
  * `programs/treasury-runway/tests/deposit_limits.rs` pins this number with a test.
  * The twelfth rung pushes the transaction past 1232 bytes.
+ *
+ * The same number holds together with `open_ladder` too: the added instruction costs
+ * 24 bytes, because all four of its accounts are already in the deposit message. At the
+ * ceiling that is 1209 bytes of 1232 — enough headroom for a priority fee as well (12 more).
+ * Both numbers are measured by `test/ladder.test.ts`, not computed by this formula.
  */
 export const MAX_RUNGS_PER_DEPOSIT = 11
 
@@ -43,9 +49,12 @@ export const MAX_RUNGS_PER_DEPOSIT = 11
  * the budget request is not an optimisation but a condition of execution. The margin over
  * the measured (~20k per rung) is deliberate: unused units are not charged, while
  * running short costs the transaction.
+ *
+ * Opening the ladder is a separate term because it also spends compute from
+ * the same ceiling: the limit applies to the transaction, not the instruction.
  */
-function computeUnitLimit(rungs: number): number {
-  return 50_000 + 25_000 * rungs
+function computeUnitLimit(rungs: number, opensLadder: boolean): number {
+  return 50_000 + 25_000 * rungs + (opensLadder ? 25_000 : 0)
 }
 
 export type LadderDepositParams = {
@@ -65,28 +74,84 @@ export type LadderDepositParams = {
 /**
  * The deposit instructions: the budget request and the deposit itself (FR-005).
  *
- * The checks here duplicate the onchain refusals on purpose. The program would say the
- * same, but after signing — and the treasurer must see the error before it.
+ * The ladder must already exist. If the treasurer is depositing for the first time —
+ * `buildLadderSetup`: opening and depositing in one signature.
  */
 export function buildLadderDeposit(params: LadderDepositParams): TransactionInstruction[] {
+  const rungs = checkedRungCount(params)
+
+  return [
+    ComputeBudgetProgram.setComputeUnitLimit({ units: computeUnitLimit(rungs, false) }),
+    depositInstruction(params),
+  ]
+}
+
+export type OpenLadderParams = {
+  owner: PublicKey
+  market: PublicKey
+  seed: bigint
+  /** What happens to the funds once the rung is redeemed (FR-013, FR-014). */
+  rollPolicy: RollPolicy
+  programId?: PublicKey
+}
+
+/**
+ * Opening the ladder is a separate instruction without a budget request: initialising
+ * one account stays well within the default 200k, and an extra request
+ * would cost bytes in a packet where they are counted.
+ */
+export function buildOpenLadder(params: OpenLadderParams): TransactionInstruction {
   const programId = params.programId ?? PROGRAM_ID
-  const rungs = rungCount(params.distribution)
 
-  if (params.amount <= 0n) {
-    throw new RangeError('deposit amount must be greater than zero')
-  }
-  if (rungs !== params.maturities.length) {
-    throw new RangeError(
-      `deposit has ${rungs} rungs but ${params.maturities.length} maturity dates`,
-    )
-  }
-  if (rungs > MAX_RUNGS_PER_DEPOSIT) {
-    throw new RangeError(
-      `${rungs} rungs do not fit in one signature: the limit is ${MAX_RUNGS_PER_DEPOSIT}`,
-    )
-  }
+  return new TransactionInstruction({
+    programId,
+    keys: [
+      { pubkey: params.owner, isSigner: true, isWritable: true },
+      { pubkey: params.market, isSigner: false, isWritable: false },
+      {
+        pubkey: ladderAddress(programId, params.owner, params.seed),
+        isSigner: false,
+        isWritable: true,
+      },
+      { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+    ],
+    data: coder.encode('open_ladder', {
+      seed: new BN(params.seed.toString()),
+      roll_policy: encodeRollPolicy(params.rollPolicy),
+    }),
+  })
+}
 
+export type LadderSetupParams = LadderDepositParams & Pick<OpenLadderParams, 'rollPolicy'>
+
+/**
+ * The treasurer's first deposit: open the ladder and put funds into it —
+ * **in one signature**.
+ *
+ * With two signatures this would be more than inconvenient. `ladder_deposit` requires an
+ * already created ladder (`Account<'info, Ladder>`), so between two signatures there is
+ * a state "ladder exists, no funds in it": the treasurer paid the account rent and
+ * saw an empty dashboard if the second signature never landed. FR-005 promises
+ * the deposit as a single action, and the boundary of that action is the transaction, not a click.
+ *
+ * The rung ceiling here is the same as for the deposit alone: `open_ladder` adds
+ * no new account to the message — only its own 24 bytes.
+ */
+export function buildLadderSetup(params: LadderSetupParams): TransactionInstruction[] {
+  const rungs = checkedRungCount(params)
+
+  return [
+    ComputeBudgetProgram.setComputeUnitLimit({ units: computeUnitLimit(rungs, true) }),
+    buildOpenLadder(params),
+    depositInstruction(params),
+  ]
+}
+
+/** The deposit instruction itself, without the budget: its size depends on its neighbours. */
+function depositInstruction(params: LadderDepositParams): TransactionInstruction {
+  const programId = params.programId ?? PROGRAM_ID
   const ladder = ladderAddress(programId, params.owner, params.seed)
+
   const keys = [
     { pubkey: params.owner, isSigner: true, isWritable: true },
     { pubkey: params.market, isSigner: false, isWritable: false },
@@ -111,10 +176,33 @@ export function buildLadderDeposit(params: LadderDepositParams): TransactionInst
     distribution: encodeDistribution(params.distribution),
   })
 
-  return [
-    ComputeBudgetProgram.setComputeUnitLimit({ units: computeUnitLimit(rungs) }),
-    new TransactionInstruction({ programId, keys, data }),
-  ]
+  return new TransactionInstruction({ programId, keys, data })
+}
+
+/**
+ * How many rungs are in the deposit — and whether it is allowed to go out at all.
+ *
+ * The checks here duplicate the onchain refusals on purpose. The program would say the
+ * same, but after signing — and the treasurer must see the error before it.
+ */
+function checkedRungCount(params: LadderDepositParams): number {
+  const rungs = rungCount(params.distribution)
+
+  if (params.amount <= 0n) {
+    throw new RangeError('deposit amount must be greater than zero')
+  }
+  if (rungs !== params.maturities.length) {
+    throw new RangeError(
+      `deposit has ${rungs} rungs but ${params.maturities.length} maturity dates`,
+    )
+  }
+  if (rungs > MAX_RUNGS_PER_DEPOSIT) {
+    throw new RangeError(
+      `${rungs} rungs do not fit in one signature: the limit is ${MAX_RUNGS_PER_DEPOSIT}`,
+    )
+  }
+
+  return rungs
 }
 
 function rungCount(distribution: Distribution): number {
@@ -126,6 +214,11 @@ function encodeDistribution(distribution: Distribution): Record<string, unknown>
   return distribution.kind === 'even'
     ? { Even: { rungs: distribution.rungs } }
     : { Weighted: { weights_bps: [...distribution.weightsBps] } }
+}
+
+/** Outward the policy is a string (`decodeLadder`), in the IDL a variant without fields. */
+function encodeRollPolicy(policy: RollPolicy): Record<string, unknown> {
+  return policy === 'roll' ? { Roll: {} } : { None: {} }
 }
 
 /** A rung together with its epoch: apart they mean nothing. */
