@@ -1,15 +1,25 @@
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
+import { BorshInstructionCoder, type Idl } from '@coral-xyz/anchor'
 import { type AccountInfo, PublicKey } from '@solana/web3.js'
 import { describe, expect, it } from 'vitest'
 import { PROGRAM_ID } from '../src/accounts.js'
+import idl from '../src/idl/treasury_runway.json' with { type: 'json' }
 import {
+  buildCreateEpoch,
+  buildInitMarket,
   fetchEpochs,
   fetchMarket,
   fetchMintDecimals,
   MarketNotFoundError,
   type MarketReader,
 } from '../src/market.js'
+import {
+  bufferVaultAddress,
+  epochAddress,
+  marketAddress as marketPda,
+  vaultAddress,
+} from '../src/pda.js'
 
 const accounts = JSON.parse(
   readFileSync(fileURLToPath(new URL('../../../fixtures/accounts.json', import.meta.url)), 'utf8'),
@@ -117,5 +127,78 @@ describe('fetchMintDecimals', () => {
     await expect(
       fetchMintDecimals(readerOf(info(Buffer.alloc(40))), marketAddress),
     ).rejects.toThrow(/is not a mint/)
+  })
+})
+
+describe('buildInitMarket', () => {
+  const authority = new PublicKey('9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM')
+  const assetMint = new PublicKey('EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v')
+  const instruction = buildInitMarket({
+    authority,
+    assetMint,
+    source: { kind: 'deterministic', rateBps: 600 },
+    feeBps: 25,
+    minRungAmount: 10_000_000n,
+  })
+
+  it('derives the market and both vaults instead of taking them on trust', () => {
+    // The vault and buffer addresses are not parameters: supplied from outside they would be
+    // the same thing as someone else's account in a transfer.
+    const market = marketPda(PROGRAM_ID, assetMint, 'deterministic')
+
+    expect(instruction.keys[2]?.pubkey.toBase58()).toBe(market.toBase58())
+    expect(instruction.keys[3]?.pubkey.toBase58()).toBe(vaultAddress(PROGRAM_ID, market).toBase58())
+    expect(instruction.keys[4]?.pubkey.toBase58()).toBe(
+      bufferVaultAddress(PROGRAM_ID, market).toBase58(),
+    )
+  })
+
+  it('encodes the arguments the program will read back', () => {
+    const decoded = new BorshInstructionCoder(idl as Idl).decode(instruction.data)
+    const args = decoded?.data as {
+      source: unknown
+      fee_bps: number
+      min_rung_amount: { toString(): string }
+    }
+
+    expect(decoded?.name).toBe('init_market')
+    expect(args.source).toEqual({ Deterministic: { rate_bps: 600 } })
+    expect(args.fee_bps).toBe(25)
+    // The minimum is a u64: through `number` it would lose precision on a large mint.
+    expect(args.min_rung_amount.toString()).toBe('10000000')
+  })
+})
+
+describe('buildCreateEpoch', () => {
+  const authority = new PublicKey('9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM')
+  const market = new PublicKey('CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8')
+
+  it('derives the epoch from its maturity, and signs as the operator', () => {
+    const maturityTs = 1_800_000_000n
+    const instruction = buildCreateEpoch({ authority, market, maturityTs, rateBps: 620 })
+
+    expect(instruction.keys[2]?.pubkey.toBase58()).toBe(
+      epochAddress(PROGRAM_ID, market, maturityTs).toBase58(),
+    )
+    expect(instruction.keys.filter((key) => key.isSigner)).toHaveLength(1)
+    expect(instruction.keys[0]?.pubkey.toBase58()).toBe(authority.toBase58())
+
+    const decoded = new BorshInstructionCoder(idl as Idl).decode(instruction.data)
+    const args = decoded?.data as { maturity_ts: { toString(): string }; rate_bps: number }
+
+    expect(decoded?.name).toBe('create_epoch')
+    expect(args.maturity_ts.toString()).toBe('1800000000')
+    expect(args.rate_bps).toBe(620)
+  })
+
+  it('keeps a maturity before 1970 signed', () => {
+    // The same sign as in the seeds: as unsigned the date would give different bytes, and the
+    // epoch would land at an address the client will never find.
+    const maturityTs = -86_400n
+    const instruction = buildCreateEpoch({ authority, market, maturityTs, rateBps: 100 })
+
+    expect(instruction.keys[2]?.pubkey.toBase58()).toBe(
+      epochAddress(PROGRAM_ID, market, maturityTs).toBase58(),
+    )
   })
 })

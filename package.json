@@ -12,16 +12,22 @@
     "gate": "pnpm lint && pnpm typecheck && pnpm test",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
-    "typecheck": "turbo run typecheck",
+    "typecheck": "turbo run typecheck && tsc --noEmit -p tsconfig.json",
     "test": "turbo run test",
     "build": "turbo run build",
     "dev": "turbo run dev",
     "program:build": "bash scripts/program.sh build",
-    "program:test": "bash scripts/program.sh test"
+    "program:test": "bash scripts/program.sh test",
+    "e2e:stand": "bash scripts/e2e-stand.sh",
+    "e2e:us1": "tsx scripts/e2e-us1.ts"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.9",
+    "@solana/web3.js": "1.98.4",
+    "@treasury-runway/math": "workspace:*",
+    "@treasury-runway/sdk": "workspace:*",
     "@types/node": "22.20.1",
+    "tsx": "4.19.2",
     "turbo": "2.10.11",
     "typescript": "7.0.2",
     "vitest": "4.1.11"

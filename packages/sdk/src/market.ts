@@ -7,8 +7,13 @@
  * **whose** rates these are and **when** they were set, before they sign.
  */
 
-import { utils } from '@coral-xyz/anchor'
-import type { Connection, PublicKey } from '@solana/web3.js'
+import { BN, BorshInstructionCoder, type Idl, utils } from '@coral-xyz/anchor'
+import {
+  type Connection,
+  type PublicKey,
+  SystemProgram,
+  TransactionInstruction,
+} from '@solana/web3.js'
 import {
   accountDiscriminator,
   decodeEpoch,
@@ -17,6 +22,10 @@ import {
   type Market,
   PROGRAM_ID,
 } from './accounts.js'
+import idl from './idl/treasury_runway.json' with { type: 'json' }
+import { bufferVaultAddress, epochAddress, marketAddress, vaultAddress } from './pda.js'
+
+const coder = new BorshInstructionCoder(idl as Idl)
 
 /** Network methods for reading the market. Narrower than `Connection` — the test substitutes. */
 export type MarketReader = Pick<Connection, 'getAccountInfo' | 'getProgramAccounts'>
@@ -99,4 +108,80 @@ export async function fetchMintDecimals(
   }
 
   return decimals
+}
+
+/**
+ * Market operator instructions.
+ *
+ * The market and its epochs are set up not by the treasurer but by whoever publishes the
+ * rates — so they sit apart from the ladder builders. They live here rather than in the
+ * stand script for the same reason as everything else in this package: a second place
+ * where instructions are encoded would drift from the first silently.
+ */
+
+/** The base yield source. Only one for now — the boundary is narrowed on purpose (T014). */
+export type YieldSourceInput = { readonly kind: 'deterministic'; readonly rateBps: number }
+
+export type InitMarketParams = {
+  readonly authority: PublicKey
+  readonly assetMint: PublicKey
+  readonly source: YieldSourceInput
+  readonly feeBps: number
+  /** The rung minimum in the mint's base units — a market field, not a constant. */
+  readonly minRungAmount: bigint
+  readonly programId?: PublicKey
+}
+
+export function buildInitMarket(params: InitMarketParams): TransactionInstruction {
+  const programId = params.programId ?? PROGRAM_ID
+  const market = marketAddress(programId, params.assetMint, params.source.kind)
+
+  return new TransactionInstruction({
+    programId,
+    keys: [
+      { pubkey: params.authority, isSigner: true, isWritable: true },
+      { pubkey: params.assetMint, isSigner: false, isWritable: false },
+      { pubkey: market, isSigner: false, isWritable: true },
+      { pubkey: vaultAddress(programId, market), isSigner: false, isWritable: true },
+      { pubkey: bufferVaultAddress(programId, market), isSigner: false, isWritable: true },
+      { pubkey: utils.token.TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
+      { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+    ],
+    data: coder.encode('init_market', {
+      source: { Deterministic: { rate_bps: params.source.rateBps } },
+      fee_bps: params.feeBps,
+      min_rung_amount: new BN(params.minRungAmount.toString()),
+    }),
+  })
+}
+
+export type CreateEpochParams = {
+  readonly authority: PublicKey
+  readonly market: PublicKey
+  /** Maturity date in Unix seconds. Signed: it also goes into the epoch seeds. */
+  readonly maturityTs: bigint
+  readonly rateBps: number
+  readonly programId?: PublicKey
+}
+
+export function buildCreateEpoch(params: CreateEpochParams): TransactionInstruction {
+  const programId = params.programId ?? PROGRAM_ID
+
+  return new TransactionInstruction({
+    programId,
+    keys: [
+      { pubkey: params.authority, isSigner: true, isWritable: true },
+      { pubkey: params.market, isSigner: false, isWritable: false },
+      {
+        pubkey: epochAddress(programId, params.market, params.maturityTs),
+        isSigner: false,
+        isWritable: true,
+      },
+      { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+    ],
+    data: coder.encode('create_epoch', {
+      maturity_ts: new BN(params.maturityTs.toString()),
+      rate_bps: params.rateBps,
+    }),
+  })
 }

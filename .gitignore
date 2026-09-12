@@ -19,3 +19,7 @@ id.json
 
 *.md
 !README.md
+
+# End-to-end stand: keys, the ledger log and the setup description. Disposable
+# by construction — every `pnpm e2e:stand` wipes it and brings it up again.
+.e2e/

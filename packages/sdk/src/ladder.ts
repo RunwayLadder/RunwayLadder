@@ -2,7 +2,7 @@ import { BN, BorshInstructionCoder, type Idl, utils } from '@coral-xyz/anchor'
 import {
   ComputeBudgetProgram,
   type Connection,
-  PublicKey,
+  type PublicKey,
   SystemProgram,
   TransactionInstruction,
 } from '@solana/web3.js'
@@ -28,9 +28,6 @@ import {
 } from './pda.js'
 
 const coder = new BorshInstructionCoder(idl as Idl)
-
-/** The token program. The address is fixed and not in the IDL, because it is not our account. */
-const TOKEN_PROGRAM_ID = new PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA')
 
 /**
  * How many rungs fit in one signature. Measured, not estimated:
@@ -159,7 +156,7 @@ function depositInstruction(params: LadderDepositParams): TransactionInstruction
     { pubkey: vaultAddress(programId, params.market), isSigner: false, isWritable: true },
     { pubkey: bufferVaultAddress(programId, params.market), isSigner: false, isWritable: true },
     { pubkey: params.sourceToken, isSigner: false, isWritable: true },
-    { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
+    { pubkey: utils.token.TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
     { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
   ]
 
