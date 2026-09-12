@@ -77,7 +77,7 @@ const LiveNotice = ({ net }: { net: LiveNetwork }) => {
       </Cell>
 
       <span className="opacity-70">
-        Figures on the screens below are still prototype data — the network path ends here.
+        Header totals are still prototype figures; the screens below read the network.
       </span>
     </div>
   )

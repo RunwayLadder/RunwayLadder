@@ -1,9 +1,11 @@
 import { MAX_RUNGS_PER_DEPOSIT } from '@treasury-runway/sdk'
 import { type ReactNode, useMemo, useState } from 'react'
+import { DepositButton } from '@/components/DepositButton'
 import { Amount, Panel } from '@/components/Primitives'
 import { RateDisclosure } from '@/components/RateDisclosure'
 import { RungTable } from '@/components/RungTable'
 import { formatAmount, formatAmountShown, formatBps } from '@/lib/amount'
+import { liveNetwork } from '@/lib/network'
 import {
   blendedNetRatePercent,
   buildPlan,
@@ -210,12 +212,16 @@ const SummaryPanel = ({
   decimals,
   symbol,
   problems,
+  rollPolicy,
+  pricedFromChain,
   onConfirm,
 }: {
   plan: Plan | null
   decimals: number
   symbol: string
   problems: readonly string[]
+  rollPolicy: boolean
+  pricedFromChain: boolean
   onConfirm: () => void
 }) => (
   <Panel title="Summary" subtitle="What goes to work, before you sign.">
@@ -224,21 +230,12 @@ const SummaryPanel = ({
     <div className="border-t border-border px-4 py-4">
       {problems.length > 0 && <Problems messages={problems} />}
 
-      <button
-        type="button"
-        disabled={plan === null}
-        onClick={onConfirm}
-        className="w-full rounded-sm px-4 py-2.5 text-sm font-semibold transition-opacity disabled:cursor-not-allowed disabled:opacity-40"
-        style={{
-          backgroundColor: 'hsl(var(--primary))',
-          color: 'hsl(var(--primary-foreground))',
-        }}
-      >
-        Deposit and build ladder — 1 signature
-      </button>
-      <p className="mt-2 text-xs text-muted-foreground">
-        All {plan?.rungs.length ?? 0} rungs are created in a single transaction.
-      </p>
+      <DepositButton
+        plan={plan}
+        rollPolicy={rollPolicy}
+        pricedFromChain={pricedFromChain}
+        onDone={onConfirm}
+      />
     </div>
   </Panel>
 )
@@ -316,6 +313,8 @@ const PreviewColumn = ({
         decimals={decimals}
         symbol={symbol}
         problems={amountProblems.map((problem) => problem.message)}
+        rollPolicy={rollPolicy}
+        pricedFromChain={pricing.kind === 'chain'}
         onConfirm={onConfirm}
       />
     </div>
@@ -387,6 +386,15 @@ export const BuildLadder = ({ onConfirm }: { onConfirm: () => void }) => {
 
   const rungProblems = problemsIn('rungs').map((problem) => problem.message)
 
+  /**
+   * There will be no mock balance next to a real signature. This screen cannot read the
+   * real one yet, and saying so is more honest than substituting a treasury
+   * number that does not exist.
+   */
+  const amountHelper = liveNetwork
+    ? 'Funds come from your associated token account for this market. Its balance is not read here — a deposit larger than it will be refused by the network.'
+    : `Available ${treasury.totalBalance} ${treasury.asset}`
+
   return (
     <div className="grid gap-4 lg:grid-cols-[minmax(340px,420px)_1fr]">
       <div className="space-y-4">
@@ -394,7 +402,7 @@ export const BuildLadder = ({ onConfirm }: { onConfirm: () => void }) => {
           title="Build ladder"
           subtitle={`${treasury.name} · ${symbol} on ${treasury.network}`}
         >
-          <FieldRow label="Amount" helper={`Available ${treasury.totalBalance} ${treasury.asset}`}>
+          <FieldRow label="Amount" helper={amountHelper}>
             <div className="flex items-center gap-2">
               <input
                 className="field"
