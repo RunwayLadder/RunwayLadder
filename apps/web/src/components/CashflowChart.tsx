@@ -9,7 +9,7 @@
  * the same thing the numbers do.
  */
 
-import type { CashflowForecast, CashflowMonth } from '@treasury-runway/math'
+import type { CashflowForecast, CashflowMonth } from '@runway-ladder/math'
 import type { TooltipProps } from 'recharts'
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { formatAmount, formatAmountShown } from '@/lib/amount'

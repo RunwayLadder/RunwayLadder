@@ -5,7 +5,7 @@ Anchor puts into the IDL only the accounts mentioned by type in `#[derive(Accoun
 Rungs are created from `remaining_accounts`, because the treasurer chooses their count,
 so `Rung` does not make it into the IDL — and without it the SDK has nothing to decode a rung with.
 
-The fragment is produced by `programs/treasury-runway/tests/idl_rung.rs` with the same
+The fragment is produced by `programs/runway-ladder/tests/idl_rung.rs` with the same
 `IdlBuild` Anchor uses for the rest of the IDL: the source of the layout stays single, and
 it is in Rust. Here there is only the splicing.
 
@@ -19,7 +19,7 @@ import pathlib
 import sys
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-IDL = ROOT / "target" / "idl" / "treasury_runway.json"
+IDL = ROOT / "target" / "idl" / "runway_ladder.json"
 FRAGMENT = ROOT / "target" / "idl" / "rung-fragment.json"
 
 

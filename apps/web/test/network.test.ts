@@ -1,5 +1,5 @@
+import { PROGRAM_ID } from '@runway-ladder/sdk'
 import { PublicKey } from '@solana/web3.js'
-import { PROGRAM_ID } from '@treasury-runway/sdk'
 import { describe, expect, it } from 'vitest'
 import { readNetworkConfig } from '../src/lib/network'
 

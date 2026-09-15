@@ -22,7 +22,7 @@ import {
   type Market,
   PROGRAM_ID,
 } from './accounts.js'
-import idl from './idl/treasury_runway.json' with { type: 'json' }
+import idl from './idl/runway_ladder.json' with { type: 'json' }
 import { bufferVaultAddress, epochAddress, marketAddress, vaultAddress } from './pda.js'
 
 const coder = new BorshInstructionCoder(idl as Idl)

@@ -8,8 +8,8 @@ use anchor_lang::prelude::Pubkey;
 use anchor_lang::AccountDeserialize;
 use mollusk_svm::result::{Check, InstructionResult};
 
-use treasury_runway::math::Distribution;
-use treasury_runway::state::{Epoch, RollPolicy, Rung, YieldSource};
+use runway_ladder::math::Distribution;
+use runway_ladder::state::{Epoch, RollPolicy, Rung, YieldSource};
 
 mod common;
 use common::{key, Env, NOW};

@@ -3,8 +3,8 @@ use anchor_lang::AccountDeserialize;
 use anchor_spl::token::spl_token;
 use mollusk_svm::result::Check;
 
-use treasury_runway::errors::LadderError;
-use treasury_runway::state::{Market, YieldSource};
+use runway_ladder::errors::LadderError;
+use runway_ladder::state::{Market, YieldSource};
 
 mod common;
 use common::{anchor_error, key, Env};

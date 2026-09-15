@@ -1,12 +1,12 @@
 [package]
-name = "treasury-runway"
+name = "runway-ladder"
 version = "0.1.0"
 edition = "2021"
 description = "Fixed-yield ladder for on-chain treasuries"
 
 [lib]
 crate-type = ["cdylib", "lib"]
-name = "treasury_runway"
+name = "runway_ladder"
 
 [features]
 default = []

@@ -7,10 +7,10 @@ resolution = true
 skip-lint = false
 
 [programs.localnet]
-treasury_runway = "HShAvvN6icFTUAs2hiKTHr7nGomyrcKz66wPB6CNhewe"
+runway_ladder = "HShAvvN6icFTUAs2hiKTHr7nGomyrcKz66wPB6CNhewe"
 
 [programs.devnet]
-treasury_runway = "HShAvvN6icFTUAs2hiKTHr7nGomyrcKz66wPB6CNhewe"
+runway_ladder = "HShAvvN6icFTUAs2hiKTHr7nGomyrcKz66wPB6CNhewe"
 
 [provider]
 cluster = "localnet"
@@ -20,4 +20,4 @@ wallet = "~/.config/solana/id.json"
 # a single node_modules cannot serve Windows and WSL at once, and the TS side of
 # this repo lives on Windows. See docs/PLAN.md → "Development environment".
 [scripts]
-test = "cargo test --manifest-path programs/treasury-runway/Cargo.toml"
+test = "cargo test --manifest-path programs/runway-ladder/Cargo.toml"

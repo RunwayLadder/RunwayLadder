@@ -33,7 +33,7 @@ const App = () => {
       <header className="border-b border-border">
         <div className="mx-auto flex max-w-[1440px] flex-wrap items-end justify-between gap-4 px-4 py-4 md:px-6">
           <div>
-            <div className="label-caps">TreasuryRunway · fixed-income layer</div>
+            <div className="label-caps">RunwayLadder · fixed-income layer</div>
             <h1 className="mt-1 text-xl font-semibold tracking-tight">{treasury.name}</h1>
             <p className="mt-1 text-xs text-muted-foreground">
               {treasury.owner} · <OwnerAddress fallback={treasury.address} /> · {treasury.asset} on{' '}

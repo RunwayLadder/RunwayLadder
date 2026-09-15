@@ -1,5 +1,5 @@
+import { type CashflowForecast, projectCashflow } from '@runway-ladder/math'
 import { useWallet } from '@solana/wallet-adapter-react'
-import { type CashflowForecast, projectCashflow } from '@treasury-runway/math'
 import { useState } from 'react'
 import { CashflowChart } from '@/components/CashflowChart'
 import { FIRST_LADDER_SEED } from '@/components/NetworkNotice'

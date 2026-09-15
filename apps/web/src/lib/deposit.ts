@@ -7,13 +7,13 @@
  * only alternative to a disabled button without explanation is a treasurer who does not know what to expect.
  */
 
-import type { PublicKey, TransactionInstruction } from '@solana/web3.js'
 import {
   associatedTokenAddress,
   buildLadderDeposit,
   buildLadderSetup,
   epochAddress,
-} from '@treasury-runway/sdk'
+} from '@runway-ladder/sdk'
+import type { PublicKey, TransactionInstruction } from '@solana/web3.js'
 import type { Plan } from '@/lib/plan'
 
 /**

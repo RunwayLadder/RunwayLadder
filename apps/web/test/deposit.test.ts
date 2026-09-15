@@ -1,11 +1,11 @@
-import { PublicKey } from '@solana/web3.js'
 import {
   associatedTokenAddress,
   epochAddress,
   ladderAddress,
   PROGRAM_ID,
   rungAddress,
-} from '@treasury-runway/sdk'
+} from '@runway-ladder/sdk'
+import { PublicKey } from '@solana/web3.js'
 import { describe, expect, it } from 'vitest'
 import {
   type DepositContext,

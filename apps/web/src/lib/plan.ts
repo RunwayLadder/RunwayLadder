@@ -8,8 +8,8 @@
  * the one `ladder_deposit` will create.
  */
 
-import { type Distribution, fee, promise, splitLadder } from '@treasury-runway/math'
-import { MAX_RUNGS_PER_DEPOSIT } from '@treasury-runway/sdk'
+import { type Distribution, fee, promise, splitLadder } from '@runway-ladder/math'
+import { MAX_RUNGS_PER_DEPOSIT } from '@runway-ladder/sdk'
 import { formatAmount, parseAmount } from '@/lib/amount'
 
 export const SECONDS_PER_DAY = 86_400

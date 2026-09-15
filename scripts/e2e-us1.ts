@@ -29,14 +29,7 @@
 
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
-import {
-  Connection,
-  Keypair,
-  PublicKey,
-  sendAndConfirmTransaction,
-  Transaction,
-} from '@solana/web3.js'
-import { fee, projectCashflow, promise, splitLadder } from '@treasury-runway/math'
+import { fee, projectCashflow, promise, splitLadder } from '@runway-ladder/math'
 import {
   associatedTokenAddress,
   buildCreateEpoch,
@@ -45,7 +38,14 @@ import {
   fetchLadder,
   type LadderView,
   marketAddress,
-} from '@treasury-runway/sdk'
+} from '@runway-ladder/sdk'
+import {
+  Connection,
+  Keypair,
+  PublicKey,
+  sendAndConfirmTransaction,
+  Transaction,
+} from '@solana/web3.js'
 
 const DAY = 86_400
 

@@ -12,13 +12,13 @@ set -euo pipefail
 
 repo="$(cd "$(dirname "$0")/.." && pwd)"
 out="$repo/.e2e"
-ledger="/tmp/treasury-runway-e2e-ledger"
+ledger="/tmp/runway-ladder-e2e-ledger"
 rpc="http://127.0.0.1:8899"
 program_id="HShAvvN6icFTUAs2hiKTHr7nGomyrcKz66wPB6CNhewe"
 
 export PATH="$HOME/.local/share/solana/install/active_release/bin:$PATH"
 
-so="$repo/target/deploy/treasury_runway.so"
+so="$repo/target/deploy/runway_ladder.so"
 if [ ! -f "$so" ]; then
   echo "no $so — run scripts/program.sh build first" >&2
   exit 2

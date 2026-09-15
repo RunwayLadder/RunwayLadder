@@ -1,5 +1,5 @@
 /**
- * TreasuryRunway — static prototype data.
+ * RunwayLadder — static prototype data.
  *
  * Every figure in this file is rendered verbatim by the UI. Amounts are stored
  * as pre-formatted strings so nothing is recomputed in JavaScript floats.

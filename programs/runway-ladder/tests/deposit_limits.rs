@@ -14,8 +14,8 @@
 use anchor_lang::prelude::Pubkey;
 use mollusk_svm::result::{Check, InstructionResult};
 
-use treasury_runway::math::Distribution;
-use treasury_runway::state::{RollPolicy, YieldSource};
+use runway_ladder::math::Distribution;
+use runway_ladder::state::{RollPolicy, YieldSource};
 
 mod common;
 use common::{key, Env, NOW};

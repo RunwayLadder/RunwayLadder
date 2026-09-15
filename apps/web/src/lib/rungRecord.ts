@@ -7,7 +7,7 @@
  * invented operator. Here everything the screen shows arrives as one object.
  */
 
-import type { LadderView, Market, RungStatus } from '@treasury-runway/sdk'
+import type { LadderView, Market, RungStatus } from '@runway-ladder/sdk'
 import { formatAmount, formatAmountShown, formatBps } from '@/lib/amount'
 
 export type StatusLabel = 'Active' | 'Redeemed' | 'Redeemed with deficit' | 'Exited'

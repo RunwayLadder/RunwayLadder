@@ -1,4 +1,4 @@
-import { MAX_RUNGS_PER_DEPOSIT } from '@treasury-runway/sdk'
+import { MAX_RUNGS_PER_DEPOSIT } from '@runway-ladder/sdk'
 import { type ReactNode, useMemo, useState } from 'react'
 import { DepositButton } from '@/components/DepositButton'
 import { Amount, Panel } from '@/components/Primitives'

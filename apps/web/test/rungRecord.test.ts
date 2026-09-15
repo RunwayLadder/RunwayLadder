@@ -1,5 +1,5 @@
+import type { Epoch, LadderView, Market, Rung, RungStatus } from '@runway-ladder/sdk'
 import { PublicKey } from '@solana/web3.js'
-import type { Epoch, LadderView, Market, Rung, RungStatus } from '@treasury-runway/sdk'
 import { describe, expect, it } from 'vitest'
 import { nextInflowOf, sourceLabel, toLadderTotals, toRungRecords } from '../src/lib/rungRecord'
 

@@ -13,8 +13,8 @@ import {
   promise,
   type RungInflow,
   splitLadder,
-} from '@treasury-runway/math'
-import type { LadderView } from '@treasury-runway/sdk'
+} from '@runway-ladder/math'
+import type { LadderView } from '@runway-ladder/sdk'
 import { prototypeMarket, publishedEpochs, treasury } from '@/lib/treasuryMock'
 
 const SECONDS_PER_DAY = 86_400

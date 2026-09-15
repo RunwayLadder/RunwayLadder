@@ -1,4 +1,4 @@
-# TreasuryRunway
+# RunwayLadder
 
 Fixed income for onchain treasuries on Solana. A treasury deposits stablecoins once
 and gets a **dated schedule of guaranteed inflows** instead of a floating APY.
@@ -52,7 +52,7 @@ stays open on purpose: "rungs actually redeemed" arrives together with redemptio
 ## Layout
 
 ```
-programs/treasury-runway  Anchor: market, epochs, ladder, rungs, waterfall
+programs/runway-ladder    Anchor: market, epochs, ladder, rungs, waterfall
 packages/math             ladder math — pure, no network, no Solana types
 packages/sdk              PDAs, instruction builders, account decoders
 apps/web                  treasurer dashboard

@@ -1,7 +1,7 @@
 import { BN, BorshAccountsCoder, type Idl } from '@coral-xyz/anchor'
 import { PublicKey } from '@solana/web3.js'
 import { z } from 'zod'
-import idl from './idl/treasury_runway.json' with { type: 'json' }
+import idl from './idl/runway_ladder.json' with { type: 'json' }
 
 /**
  * The IDL is generated from Rust and copied here by the build — so the account layout

@@ -7,7 +7,7 @@
  * worse than an honestly labelled prototype, because they look the same.
  */
 
-import type { Epoch } from '@treasury-runway/sdk'
+import type { Epoch } from '@runway-ladder/sdk'
 import type { MarketParams, PublishedEpoch } from '@/lib/plan'
 
 export const SECONDS_PER_DAY = 86_400n

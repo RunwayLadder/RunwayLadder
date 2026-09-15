@@ -4,7 +4,7 @@ import { promise } from './promise.js'
 /**
  * Inflow projection (FR-008).
  *
- * **Why this module has no twin in `programs/treasury-runway`.** The rule of
+ * **Why this module has no twin in `programs/runway-ladder`.** The rule of
  * duplicated math applies to numbers the program pays: the deposit layout,
  * the promise, the waterfall. A projection is presentation, not payment: the chain never draws
  * a chart and has no instruction that depends on one. Duplicating it

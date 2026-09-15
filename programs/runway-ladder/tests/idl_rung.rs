@@ -21,7 +21,7 @@ use anchor_lang::idl::types::IdlTypeDef;
 use anchor_lang::idl::IdlBuild;
 use anchor_lang::Discriminator;
 
-use treasury_runway::state::Rung;
+use runway_ladder::state::Rung;
 
 #[test]
 fn writes_the_rung_idl_fragment() {

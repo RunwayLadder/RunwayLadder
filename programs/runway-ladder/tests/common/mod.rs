@@ -12,8 +12,8 @@ use anchor_spl::token::spl_token;
 use mollusk_svm::Mollusk;
 use solana_account::Account;
 
-use treasury_runway::math::Distribution;
-use treasury_runway::state::{RollPolicy, YieldSource};
+use runway_ladder::math::Distribution;
+use runway_ladder::state::{RollPolicy, YieldSource};
 
 /// Anchor 0.32 and mollusk 0.15 are built on different majors of the solana crates
 /// (`solana-instruction` 2.x vs 3.x), so their `Pubkey`s are two different types
@@ -46,7 +46,7 @@ pub fn to_svm(ix: Instruction) -> svm::Instruction {
 }
 
 /// `#[error_code]` offsets the variants by 6000.
-pub fn anchor_error(code: treasury_runway::errors::LadderError) -> svm::ProgramError {
+pub fn anchor_error(code: runway_ladder::errors::LadderError) -> svm::ProgramError {
     svm::ProgramError::Custom(6000 + code as u32)
 }
 
@@ -128,7 +128,7 @@ pub struct Env {
 
 impl Env {
     pub fn new(source: YieldSource) -> Self {
-        let mut mollusk = Mollusk::new(&key(treasury_runway::ID), "treasury_runway");
+        let mut mollusk = Mollusk::new(&key(runway_ladder::ID), "runway_ladder");
         mollusk_svm_programs_token::token::add_program(&mut mollusk);
         mollusk.sysvars.clock.unix_timestamp = NOW;
 
@@ -137,12 +137,12 @@ impl Env {
 
         let (market, _) = Pubkey::find_program_address(
             &[b"market", asset_mint.as_ref(), &source.seed()],
-            &treasury_runway::ID,
+            &runway_ladder::ID,
         );
         let (vault, _) =
-            Pubkey::find_program_address(&[b"vault", market.as_ref()], &treasury_runway::ID);
+            Pubkey::find_program_address(&[b"vault", market.as_ref()], &runway_ladder::ID);
         let (buffer_vault, _) =
-            Pubkey::find_program_address(&[b"buffer", market.as_ref()], &treasury_runway::ID);
+            Pubkey::find_program_address(&[b"buffer", market.as_ref()], &runway_ladder::ID);
 
         let system = mollusk_svm::program::keyed_account_for_system_program();
         let accounts = vec![
@@ -179,7 +179,7 @@ impl Env {
     pub fn epoch(&self, maturity_ts: i64) -> Pubkey {
         Pubkey::find_program_address(
             &[b"epoch", self.market.as_ref(), &maturity_ts.to_le_bytes()],
-            &treasury_runway::ID,
+            &runway_ladder::ID,
         )
         .0
     }
@@ -192,8 +192,8 @@ impl Env {
 
     pub fn init_market(&self, fee_bps: u16) -> svm::Instruction {
         to_svm(Instruction {
-            program_id: treasury_runway::ID,
-            accounts: treasury_runway::accounts::InitMarket {
+            program_id: runway_ladder::ID,
+            accounts: runway_ladder::accounts::InitMarket {
                 authority: self.authority,
                 asset_mint: self.asset_mint,
                 market: self.market,
@@ -203,7 +203,7 @@ impl Env {
                 system_program: anchor_lang::system_program::ID,
             }
             .to_account_metas(None),
-            data: treasury_runway::instruction::InitMarket {
+            data: runway_ladder::instruction::InitMarket {
                 source: self.source,
                 fee_bps,
                 min_rung_amount: self.min_rung_amount,
@@ -219,22 +219,22 @@ impl Env {
         rate_bps: u16,
     ) -> svm::Instruction {
         to_svm(Instruction {
-            program_id: treasury_runway::ID,
-            accounts: treasury_runway::accounts::CreateEpoch {
+            program_id: runway_ladder::ID,
+            accounts: runway_ladder::accounts::CreateEpoch {
                 authority: signer,
                 market: self.market,
                 epoch: self.epoch(maturity_ts),
                 system_program: anchor_lang::system_program::ID,
             }
             .to_account_metas(None),
-            data: treasury_runway::instruction::CreateEpoch { maturity_ts, rate_bps }.data(),
+            data: runway_ladder::instruction::CreateEpoch { maturity_ts, rate_bps }.data(),
         })
     }
 
     pub fn ladder(&self, owner: Pubkey, seed: u64) -> Pubkey {
         Pubkey::find_program_address(
             &[b"ladder", owner.as_ref(), &seed.to_le_bytes()],
-            &treasury_runway::ID,
+            &runway_ladder::ID,
         )
         .0
     }
@@ -253,22 +253,22 @@ impl Env {
         policy: RollPolicy,
     ) -> svm::Instruction {
         to_svm(Instruction {
-            program_id: treasury_runway::ID,
-            accounts: treasury_runway::accounts::OpenLadder {
+            program_id: runway_ladder::ID,
+            accounts: runway_ladder::accounts::OpenLadder {
                 owner: signer,
                 market: self.market,
                 ladder,
                 system_program: anchor_lang::system_program::ID,
             }
             .to_account_metas(None),
-            data: treasury_runway::instruction::OpenLadder { seed, roll_policy: policy }.data(),
+            data: runway_ladder::instruction::OpenLadder { seed, roll_policy: policy }.data(),
         })
     }
 
     pub fn rung(&self, ladder: Pubkey, epoch: Pubkey) -> Pubkey {
         Pubkey::find_program_address(
             &[b"rung", ladder.as_ref(), epoch.as_ref()],
-            &treasury_runway::ID,
+            &runway_ladder::ID,
         )
         .0
     }
@@ -280,10 +280,10 @@ impl Env {
         let address = self.epoch(maturity_ts);
         let (_, bump) = Pubkey::find_program_address(
             &[b"epoch", self.market.as_ref(), &maturity_ts.to_le_bytes()],
-            &treasury_runway::ID,
+            &runway_ladder::ID,
         );
 
-        let epoch = treasury_runway::state::Epoch {
+        let epoch = runway_ladder::state::Epoch {
             market: self.market,
             maturity_ts,
             rate_bps,
@@ -294,7 +294,7 @@ impl Env {
             bump,
         };
 
-        let mut data = vec![0u8; 8 + treasury_runway::state::Epoch::INIT_SPACE];
+        let mut data = vec![0u8; 8 + runway_ladder::state::Epoch::INIT_SPACE];
         epoch.try_serialize(&mut &mut data[..]).expect("serializes as Epoch");
 
         self.accounts.push((
@@ -302,7 +302,7 @@ impl Env {
             Account {
                 lamports: FUNDED,
                 data,
-                owner: key(treasury_runway::ID),
+                owner: key(runway_ladder::ID),
                 executable: false,
                 rent_epoch: 0,
             },
@@ -356,7 +356,7 @@ impl Env {
     ) -> svm::Instruction {
         let ladder = self.ladder(ladder_owner, seed);
 
-        let mut metas = treasury_runway::accounts::LadderDeposit {
+        let mut metas = runway_ladder::accounts::LadderDeposit {
             owner: signer,
             market: self.market,
             ladder,
@@ -378,9 +378,9 @@ impl Env {
         }
 
         to_svm(Instruction {
-            program_id: treasury_runway::ID,
+            program_id: runway_ladder::ID,
             accounts: metas,
-            data: treasury_runway::instruction::LadderDeposit { amount, distribution }.data(),
+            data: runway_ladder::instruction::LadderDeposit { amount, distribution }.data(),
         })
     }
 }

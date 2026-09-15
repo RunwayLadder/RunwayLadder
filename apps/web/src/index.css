@@ -3,7 +3,7 @@
 @tailwind utilities;
 
 /*
- * TreasuryRunway design tokens. Dark theme only, all colours HSL.
+ * RunwayLadder design tokens. Dark theme only, all colours HSL.
  * Every variable here is used somewhere — template tokens that no line
  * referenced were removed during the port (T019).
  */

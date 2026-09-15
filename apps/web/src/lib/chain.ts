@@ -6,9 +6,6 @@
  * second implementation of the deposit layout would mean a second number on screen.
  */
 
-import { useConnection } from '@solana/wallet-adapter-react'
-import type { PublicKey } from '@solana/web3.js'
-import { QueryClient, skipToken, useQuery } from '@tanstack/react-query'
 import {
   type Epoch,
   fetchEpochs,
@@ -17,7 +14,10 @@ import {
   fetchMintDecimals,
   LadderNotFoundError,
   type LadderView,
-} from '@treasury-runway/sdk'
+} from '@runway-ladder/sdk'
+import { useConnection } from '@solana/wallet-adapter-react'
+import type { PublicKey } from '@solana/web3.js'
+import { QueryClient, skipToken, useQuery } from '@tanstack/react-query'
 import { liveNetwork } from '@/lib/network'
 
 /**
@@ -53,7 +53,7 @@ export type ProgramStatus = {
 
 /**
  * Whether the program is on this RPC. One read answers two of the treasurer's
- * questions at once: "is the RPC alive?" and "is this the network TreasuryRunway is on?". A
+ * questions at once: "is the RPC alive?" and "is this the network RunwayLadder is on?". A
  * request error here means the first, `deployed: false` the second.
  */
 export function useProgramStatus() {

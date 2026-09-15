@@ -9,7 +9,7 @@ use std::str::FromStr;
 use anchor_lang::prelude::Pubkey;
 use serde_json::Value;
 
-use treasury_runway::state::YieldSource;
+use runway_ladder::state::YieldSource;
 
 fn fixture() -> Value {
     let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../../fixtures/pdas.json");
@@ -26,7 +26,7 @@ fn sdk_addresses_match_the_program_seeds() {
     let f = fixture();
 
     let program_id = pubkey(&f["program_id"]);
-    assert_eq!(program_id, treasury_runway::ID, "the SDK takes the program id from the IDL");
+    assert_eq!(program_id, runway_ladder::ID, "the SDK takes the program id from the IDL");
 
     let asset_mint = pubkey(&f["asset_mint"]);
     let source = YieldSource::Deterministic { rate_bps: 0 };

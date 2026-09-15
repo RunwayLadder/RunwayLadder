@@ -8,9 +8,9 @@ use anchor_lang::prelude::Pubkey;
 use anchor_lang::AccountDeserialize;
 use mollusk_svm::result::{Check, InstructionResult};
 
-use treasury_runway::errors::LadderError;
-use treasury_runway::math::Distribution;
-use treasury_runway::state::{Epoch, Ladder, Rung, RollPolicy, RungStatus, YieldSource};
+use runway_ladder::errors::LadderError;
+use runway_ladder::math::Distribution;
+use runway_ladder::state::{Epoch, Ladder, Rung, RollPolicy, RungStatus, YieldSource};
 
 mod common;
 use common::{anchor_error, key, Env, NOW};

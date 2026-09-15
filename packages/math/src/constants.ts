@@ -1,5 +1,5 @@
 /**
- * Both implementations of the ladder math — this one and `programs/treasury-runway/src/math.rs` —
+ * Both implementations of the ladder math — this one and `programs/runway-ladder/src/math.rs` —
  * hold these same numbers. They are duplicated in `fixtures/vectors.json`, and a test checks
  * the copies against each other: a discrepancy in a constant is a discrepancy in the amount
  * the treasurer will see and the program will pay.

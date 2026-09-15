@@ -1,6 +1,6 @@
+import { projectCashflow } from '@runway-ladder/math'
+import type { LadderView, RungStatus } from '@runway-ladder/sdk'
 import { PublicKey } from '@solana/web3.js'
-import { projectCashflow } from '@treasury-runway/math'
-import type { LadderView, RungStatus } from '@treasury-runway/sdk'
 import { describe, expect, it } from 'vitest'
 import { formatAmount } from '../src/lib/amount'
 import { NO_FLOATING, PROTOTYPE_FLOATING, prototypeInflows, toInflows } from '../src/lib/inflows'

@@ -21,7 +21,7 @@ export type Distribution =
  * to promise an amount other than the one it accepted.
  *
  * The remainder is handed out one unit at a time, starting from the first rung. The choice
- * is arbitrary, but it must be the same in `programs/treasury-runway` and here,
+ * is arbitrary, but it must be the same in `programs/runway-ladder` and here,
  * which is why it is fixed in `fixtures/vectors.json` rather than in a comment of one of
  * the implementations. The difference between rungs never exceeds one unit.
  *

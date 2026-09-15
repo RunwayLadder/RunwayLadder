@@ -7,8 +7,8 @@
  * a test checks it, not the application launch.
  */
 
+import { PROGRAM_ID } from '@runway-ladder/sdk'
 import { PublicKey } from '@solana/web3.js'
-import { PROGRAM_ID } from '@treasury-runway/sdk'
 import { z } from 'zod'
 
 /**

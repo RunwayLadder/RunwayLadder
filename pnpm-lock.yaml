@@ -17,10 +17,10 @@ importers:
       '@solana/web3.js':
         specifier: 1.98.4
         version: 1.98.4(bufferutil@4.1.0)(typescript@7.0.2)
-      '@treasury-runway/math':
+      '@runway-ladder/math':
         specifier: workspace:*
         version: link:packages/math
-      '@treasury-runway/sdk':
+      '@runway-ladder/sdk':
         specifier: workspace:*
         version: link:packages/sdk
       '@types/node':
@@ -53,10 +53,10 @@ importers:
       '@tanstack/react-query':
         specifier: 5.101.4
         version: 5.101.4(react@18.3.1)
-      '@treasury-runway/math':
+      '@runway-ladder/math':
         specifier: workspace:^
         version: link:../../packages/math
-      '@treasury-runway/sdk':
+      '@runway-ladder/sdk':
         specifier: workspace:*
         version: link:../../packages/sdk
       bs58:
@@ -110,7 +110,7 @@ importers:
       '@solana/web3.js':
         specifier: 1.98.4
         version: 1.98.4(bufferutil@4.1.0)(typescript@7.0.2)
-      '@treasury-runway/math':
+      '@runway-ladder/math':
         specifier: workspace:*
         version: link:../math
       zod:

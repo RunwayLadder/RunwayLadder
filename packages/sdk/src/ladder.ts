@@ -1,4 +1,5 @@
 import { BN, BorshInstructionCoder, type Idl, utils } from '@coral-xyz/anchor'
+import type { Distribution } from '@runway-ladder/math'
 import {
   ComputeBudgetProgram,
   type Connection,
@@ -6,7 +7,6 @@ import {
   SystemProgram,
   TransactionInstruction,
 } from '@solana/web3.js'
-import type { Distribution } from '@treasury-runway/math'
 import {
   decodeEpoch,
   decodeLadder,
@@ -18,7 +18,7 @@ import {
   type Rung,
   rungDiscriminator,
 } from './accounts.js'
-import idl from './idl/treasury_runway.json' with { type: 'json' }
+import idl from './idl/runway_ladder.json' with { type: 'json' }
 import {
   bufferVaultAddress,
   epochAddress,
@@ -31,7 +31,7 @@ const coder = new BorshInstructionCoder(idl as Idl)
 
 /**
  * How many rungs fit in one signature. Measured, not estimated:
- * `programs/treasury-runway/tests/deposit_limits.rs` pins this number with a test.
+ * `programs/runway-ladder/tests/deposit_limits.rs` pins this number with a test.
  * The twelfth rung pushes the transaction past 1232 bytes.
  *
  * The same number holds together with `open_ladder` too: the added instruction costs

@@ -11,7 +11,7 @@ use state::*;
 declare_id!("HShAvvN6icFTUAs2hiKTHr7nGomyrcKz66wPB6CNhewe");
 
 #[program]
-pub mod treasury_runway {
+pub mod runway_ladder {
     use super::*;
 
     pub fn init_market(

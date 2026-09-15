@@ -10,7 +10,7 @@ import {
 } from '@solana/web3.js'
 import { describe, expect, it } from 'vitest'
 import { PROGRAM_ID } from '../src/accounts.js'
-import idl from '../src/idl/treasury_runway.json' with { type: 'json' }
+import idl from '../src/idl/runway_ladder.json' with { type: 'json' }
 import {
   buildLadderDeposit,
   buildLadderSetup,

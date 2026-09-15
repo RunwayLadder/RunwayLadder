@@ -1,5 +1,5 @@
+import type { Epoch } from '@runway-ladder/sdk'
 import { PublicKey } from '@solana/web3.js'
-import type { Epoch } from '@treasury-runway/sdk'
 import { describe, expect, it } from 'vitest'
 import { singleOperator } from '../src/components/RateDisclosure'
 import type { PlanRung, PublishedEpoch } from '../src/lib/plan'

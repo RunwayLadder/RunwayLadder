@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "note": "Shared vectors for two implementations of the same math: packages/math (TS) and programs/treasury-runway/src/math.rs (Rust). Both must produce exactly these numbers — a discrepancy means the dashboard shows the treasurer something other than what the program will pay. The values were computed independently of both implementations.",
+  "note": "Shared vectors for two implementations of the same math: packages/math (TS) and programs/runway-ladder/src/math.rs (Rust). Both must produce exactly these numbers — a discrepancy means the dashboard shows the treasurer something other than what the program will pay. The values were computed independently of both implementations.",
   "constants": {
     "bps_denominator": 10000,
     "seconds_per_year": 31536000,

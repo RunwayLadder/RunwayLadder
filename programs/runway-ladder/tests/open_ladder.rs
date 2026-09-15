@@ -9,7 +9,7 @@ use anchor_lang::prelude::Pubkey;
 use anchor_lang::AccountDeserialize;
 use mollusk_svm::result::Check;
 
-use treasury_runway::state::{Ladder, RollPolicy, YieldSource};
+use runway_ladder::state::{Ladder, RollPolicy, YieldSource};
 
 mod common;
 use common::{constraint_error, key, without_signature, Env, NOW};

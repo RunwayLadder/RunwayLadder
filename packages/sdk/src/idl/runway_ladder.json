@@ -1,7 +1,7 @@
 {
   "address": "HShAvvN6icFTUAs2hiKTHr7nGomyrcKz66wPB6CNhewe",
   "metadata": {
-    "name": "treasury_runway",
+    "name": "runway_ladder",
     "version": "0.1.0",
     "spec": "0.1.0",
     "description": "Fixed-yield ladder for on-chain treasuries"

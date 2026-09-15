@@ -2,8 +2,8 @@ use anchor_lang::prelude::Pubkey;
 use anchor_lang::AccountDeserialize;
 use mollusk_svm::result::Check;
 
-use treasury_runway::errors::LadderError;
-use treasury_runway::state::{Epoch, YieldSource};
+use runway_ladder::errors::LadderError;
+use runway_ladder::state::{Epoch, YieldSource};
 
 mod common;
 use common::{anchor_error, key, Env, FUNDED, NOW};

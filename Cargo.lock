@@ -2466,6 +2466,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "runway-ladder"
+version = "0.1.0"
+dependencies = [
+ "anchor-lang",
+ "anchor-spl",
+ "mollusk-svm",
+ "mollusk-svm-programs-token",
+ "serde_json",
+ "solana-account 4.3.2",
+ "solana-instruction 3.4.1",
+ "solana-message 4.4.1",
+ "solana-program-error 3.0.1",
+ "solana-pubkey 4.2.1",
+]
+
+[[package]]
 name = "rustc-demangle"
 version = "0.1.28"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5221,22 +5237,6 @@ name = "toml_write"
 version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5d99f8c9a7727884afe522e9bd5edbfc91a3312b36a77b5fb8926e4c31a41801"
-
-[[package]]
-name = "treasury-runway"
-version = "0.1.0"
-dependencies = [
- "anchor-lang",
- "anchor-spl",
- "mollusk-svm",
- "mollusk-svm-programs-token",
- "serde_json",
- "solana-account 4.3.2",
- "solana-instruction 3.4.1",
- "solana-message 4.4.1",
- "solana-program-error 3.0.1",
- "solana-pubkey 4.2.1",
-]
 
 [[package]]
 name = "typenum"
