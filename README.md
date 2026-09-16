@@ -15,6 +15,11 @@ ladder and lays the amount across rungs, where each rung is a promise to pay a
 specific amount in a specific epoch. The dashboard then reads the ladder back from
 the chain and draws the inflow chart.
 
+A protocol fee (`Market.fee_bps`) is taken from the principal at deposit time and
+goes to the protocol buffer, so the promise on each rung is made on the working
+amount, not the nominal — the form shows both. Every state change emits an event
+(`LadderOpened`, `RungIssued`, `LadderFunded`).
+
 ## Status: milestone M1 (`v0.1.0`)
 
 The ladder works end to end — from the form to the chain and back into the chart.
@@ -33,30 +38,39 @@ lives, but no rung can be redeemed, rolled, or settled — that's M2. The yield 
 is a deterministic stub adapter, not Kamino (M3). Half of the sum-matching criterion
 stays open on purpose: "rungs actually redeemed" arrives together with redemption.
 
-## Rules enforced by the types
+## Rules the code is built around
 
-- **A promise cannot change once issued.** No instruction has a path that overwrites
-  `Rung.promised_amount`.
+Enforced today:
+
+- **A promise cannot change once issued.** None of the four instructions
+  (`init_market`, `create_epoch`, `open_ladder`, `ladder_deposit`) has a path that
+  overwrites `Rung.promised_amount`.
 - **A shortfall is never silent.** "Paid less than promised, unmarked" is an
-  unrepresentable state: `RedeemedWithDeficit` is a separate variant.
-- **One waterfall:** yield pool → protocol buffer → proportional haircut. One
-  function, one instruction, one order.
-- **The crank cannot divert funds:** the destination is not a parameter of a roll —
-  the new rung goes into the same ladder with the same owner, and that owner may be
-  a multisig safe.
+  unrepresentable state: `RungStatus::RedeemedWithDeficit { amount, promised }` is
+  a separate variant. The type exists now; the instruction that produces it comes
+  with redemption.
 - **Checked arithmetic only**, `u128` for intermediate products, `overflow-checks`
   enabled even in release: an overflow here is a wrong amount, not a panic.
 - **The math is duplicated in Rust and TypeScript deliberately.** Drift is caught by
   the shared vectors in `fixtures/vectors.json`, read by both test suites.
 
+Designed in, arriving with M2:
+
+- **One waterfall:** yield pool → protocol buffer → proportional haircut. One
+  function, one instruction (`settle_epoch`), one order.
+- **The crank cannot divert funds:** the destination is not a parameter of a roll —
+  the new rung goes into the same ladder with the same owner, and that owner may be
+  a multisig safe. The roll policy (`None` / `Roll`) is already fixed when the ladder
+  is opened; the permissionless `roll_rung` itself is not written yet.
+
 ## Layout
 
 ```
-programs/runway-ladder    Anchor: market, epochs, ladder, rungs, waterfall
+programs/runway-ladder    Anchor: market, epochs, ladder, rungs
 packages/math             ladder math — pure, no network, no Solana types
-packages/sdk              PDAs, instruction builders, account decoders
+packages/sdk              PDAs, instruction builders, account decoders, IDL
 apps/web                  treasurer dashboard
-apps/keeper               permissionless roll crank (from M2)
+scripts/                  WSL build, local validator stand, end-to-end run
 ```
 
 ## Build and run
@@ -92,4 +106,6 @@ TypeScript 7.0.2 strict · Biome 2.5.9 · Vitest 4.1.11 · Zod 4.4.3 ·
 ## Disclaimer
 
 Work in progress. Nothing is deployed to mainnet and nothing has been audited. Demos
-do not run against mainnet: a fork for the local stand, devnet for a public link.
+do not run against mainnet: today the stand is a plain local validator with the
+program loaded; a mainnet fork arrives with the Kamino adapter (M3), devnet for a
+public link.
