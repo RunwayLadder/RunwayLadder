@@ -7,6 +7,10 @@ The novelty isn't splitting principal from yield — Exponent already does that 
 the treasury layer on top: laddering one amount across several dates in a single
 signature, a roll policy, and a runway report showing how far the inflows reach.
 
+**Live prototype:** https://runwayladder.github.io/RunwayLadder/ — the dashboard on
+mock data, deployed from `main` by GitHub Actions. It reads no network yet and says
+so in its status bar; the network mode arrives with the devnet deployment.
+
 ## How it works
 
 The treasurer enters an amount and a horizon. The form shows the rate, the operator,
