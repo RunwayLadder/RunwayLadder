@@ -1,0 +1,64 @@
+# Treasurer dashboard on GitHub Pages: https://runwayladder.github.io/RunwayLadder/
+#
+# What gets published is the prototype on mock data — VITE_RPC_URL is not set here, and
+# the status bar says so itself. Network mode on Pages arrives once the program is
+# deployed to devnet (T049): the VITE_* variables will then come from repository vars.
+#
+# Rust is not needed: the IDL lives in packages/sdk/src/idl and is bundled with web.
+name: pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# A second push must not overtake the first: deployments run in order, not in parallel.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        # takes the version from package.json → packageManager
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm --filter @runway-ladder/web exec vite build
+        env:
+          # A project site lives under /<repo>/, not at the domain root.
+          PAGES_BASE: /${{ github.event.repository.name }}/
+
+      - uses: actions/configure-pages@v5
+        with:
+          # The first run enables Pages itself with the "GitHub Actions" source;
+          # after that the step changes nothing.
+          enablement: true
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: apps/web/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
