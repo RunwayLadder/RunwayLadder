@@ -43,11 +43,11 @@ jobs:
           # A project site lives under /<repo>/, not at the domain root.
           PAGES_BASE: /${{ github.event.repository.name }}/
 
+      # Pages is enabled once by the repository owner: Settings → Pages → Source:
+      # "GitHub Actions". GITHUB_TOKEN cannot create the site itself (the first
+      # run failed with "Resource not accessible by integration"), so the step
+      # only reads the existing configuration.
       - uses: actions/configure-pages@v5
-        with:
-          # The first run enables Pages itself with the "GitHub Actions" source;
-          # after that the step changes nothing.
-          enablement: true
 
       - uses: actions/upload-pages-artifact@v3
         with:
