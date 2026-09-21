@@ -31,12 +31,34 @@ export type SplitWeightedCase = {
   parts: string[]
 }
 
+export type WaterfallCase = {
+  name: string
+  promised: string
+  realized: string
+  yield_pool: string
+  buffer: string
+  paid: string
+  from_yield_pool: string
+  from_buffer: string
+  surplus: string
+  deficit: string
+}
+
+export type PayoutCase = {
+  name: string
+  rung_promised: string
+  paid: string
+  promised: string
+  payout: string
+}
+
 type Vectors = {
   version: number
   constants: { bps_denominator: number; seconds_per_year: number }
   fee: { cases: FeeCase[] }
   promise: { cases: PromiseCase[] }
   split: { even_cases: SplitEvenCase[]; weighted_cases: SplitWeightedCase[] }
+  waterfall: { cases: WaterfallCase[]; payout: { cases: PayoutCase[] } }
 }
 
 const path = fileURLToPath(new URL('../../../fixtures/vectors.json', import.meta.url))

@@ -203,5 +203,201 @@
         "parts": ["12345"]
       }
     ]
+  },
+  "waterfall": {
+    "formula": "shortfall = max(promised - realized, 0); from_yield_pool = min(shortfall, yield_pool); from_buffer = min(shortfall - from_yield_pool, buffer); paid = promised - (shortfall - from_yield_pool - from_buffer); deficit = promised - paid; surplus = max(realized - promised, 0)",
+    "cases": [
+      {
+        "name": "source-covers-with-surplus",
+        "promised": "1030000000",
+        "realized": "1045000000",
+        "yield_pool": "5000000",
+        "buffer": "2000000",
+        "paid": "1030000000",
+        "from_yield_pool": "0",
+        "from_buffer": "0",
+        "surplus": "15000000",
+        "deficit": "0"
+      },
+      {
+        "name": "source-covers-exactly",
+        "promised": "1030000000",
+        "realized": "1030000000",
+        "yield_pool": "5000000",
+        "buffer": "2000000",
+        "paid": "1030000000",
+        "from_yield_pool": "0",
+        "from_buffer": "0",
+        "surplus": "0",
+        "deficit": "0"
+      },
+      {
+        "name": "pools-untouched-on-surplus",
+        "promised": "1030000000",
+        "realized": "1030000001",
+        "yield_pool": "999999999",
+        "buffer": "999999999",
+        "paid": "1030000000",
+        "from_yield_pool": "0",
+        "from_buffer": "0",
+        "surplus": "1",
+        "deficit": "0"
+      },
+      {
+        "name": "yield-pool-covers",
+        "promised": "1030000000",
+        "realized": "1020000000",
+        "yield_pool": "15000000",
+        "buffer": "2000000",
+        "paid": "1030000000",
+        "from_yield_pool": "10000000",
+        "from_buffer": "0",
+        "surplus": "0",
+        "deficit": "0"
+      },
+      {
+        "name": "yield-pool-drained-then-buffer",
+        "promised": "1030000000",
+        "realized": "1020000000",
+        "yield_pool": "6000000",
+        "buffer": "5000000",
+        "paid": "1030000000",
+        "from_yield_pool": "6000000",
+        "from_buffer": "4000000",
+        "surplus": "0",
+        "deficit": "0"
+      },
+      {
+        "name": "both-drained-then-haircut",
+        "promised": "1030000000",
+        "realized": "1020000000",
+        "yield_pool": "3000000",
+        "buffer": "2000000",
+        "paid": "1025000000",
+        "from_yield_pool": "3000000",
+        "from_buffer": "2000000",
+        "surplus": "0",
+        "deficit": "5000000"
+      },
+      {
+        "name": "rate-halved-buffer-only",
+        "promised": "1014794520",
+        "realized": "1007397260",
+        "yield_pool": "0",
+        "buffer": "1000000",
+        "paid": "1008397260",
+        "from_yield_pool": "0",
+        "from_buffer": "1000000",
+        "surplus": "0",
+        "deficit": "6397260"
+      },
+      {
+        "name": "rate-halved-nothing-behind",
+        "promised": "1014794520",
+        "realized": "1007397260",
+        "yield_pool": "0",
+        "buffer": "0",
+        "paid": "1007397260",
+        "from_yield_pool": "0",
+        "from_buffer": "0",
+        "surplus": "0",
+        "deficit": "7397260"
+      },
+      {
+        "name": "source-lost-principal",
+        "promised": "1014794520",
+        "realized": "900000000",
+        "yield_pool": "0",
+        "buffer": "0",
+        "paid": "900000000",
+        "from_yield_pool": "0",
+        "from_buffer": "0",
+        "surplus": "0",
+        "deficit": "114794520"
+      },
+      {
+        "name": "nothing-realized",
+        "promised": "1014794520",
+        "realized": "0",
+        "yield_pool": "0",
+        "buffer": "0",
+        "paid": "0",
+        "from_yield_pool": "0",
+        "from_buffer": "0",
+        "surplus": "0",
+        "deficit": "1014794520"
+      },
+      {
+        "name": "empty-epoch",
+        "promised": "0",
+        "realized": "0",
+        "yield_pool": "0",
+        "buffer": "0",
+        "paid": "0",
+        "from_yield_pool": "0",
+        "from_buffer": "0",
+        "surplus": "0",
+        "deficit": "0"
+      },
+      {
+        "name": "one-unit-short",
+        "promised": "1000",
+        "realized": "999",
+        "yield_pool": "0",
+        "buffer": "1",
+        "paid": "1000",
+        "from_yield_pool": "0",
+        "from_buffer": "1",
+        "surplus": "0",
+        "deficit": "0"
+      }
+    ],
+    "payout": {
+      "formula": "payout = rung_promised when paid = promised, otherwise rung_promised * paid / promised rounded down",
+      "cases": [
+        {
+          "name": "at-par",
+          "rung_promised": "250000000",
+          "paid": "1014794520",
+          "promised": "1014794520",
+          "payout": "250000000"
+        },
+        {
+          "name": "haircut-pro-rata",
+          "rung_promised": "250000000",
+          "paid": "1008397260",
+          "promised": "1014794520",
+          "payout": "248424001"
+        },
+        {
+          "name": "rounds-down",
+          "rung_promised": "3",
+          "paid": "2",
+          "promised": "3",
+          "payout": "2"
+        },
+        {
+          "name": "rounds-down-to-zero",
+          "rung_promised": "1",
+          "paid": "1",
+          "promised": "3",
+          "payout": "0"
+        },
+        {
+          "name": "whole-epoch-is-one-rung",
+          "rung_promised": "1014794520",
+          "paid": "1008397260",
+          "promised": "1014794520",
+          "payout": "1008397260"
+        },
+        {
+          "name": "nothing-paid",
+          "rung_promised": "250000000",
+          "paid": "0",
+          "promised": "1014794520",
+          "payout": "0"
+        }
+      ]
+    }
   }
 }
