@@ -543,6 +543,11 @@
       "code": 6016,
       "name": "MathOverflow",
       "msg": "Overflow in amount calculation"
+    },
+    {
+      "code": 6017,
+      "name": "RungExceedsEpochPromise",
+      "msg": "Rung promise is larger than its epoch's total — the epoch's accounting is inconsistent"
     }
   ],
   "types": [

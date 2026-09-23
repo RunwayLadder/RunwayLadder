@@ -56,4 +56,10 @@ pub enum LadderError {
     /// overflow is a wrong payout, not a crash.
     #[msg("Overflow in amount calculation")]
     MathOverflow,
+
+    /// No instruction can reach this: a rung is always part of its epoch's total. It exists so
+    /// that `math::payout` can never return more than the promise — of the two ways an amount
+    /// can be wrong, this product cannot survive the upward one.
+    #[msg("Rung promise is larger than its epoch's total — the epoch's accounting is inconsistent")]
+    RungExceedsEpochPromise,
 }
