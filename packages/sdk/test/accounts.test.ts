@@ -46,7 +46,17 @@ type Fixture = {
     created_at: number
     total_deposited: number
     total_promised: number
+    deposit_seconds: string
+    status: string
     bump: number
+  }
+  epoch_settled_with_deficit: {
+    base64: string
+    total_promised: number
+    deposit_seconds: string
+    status: string
+    paid: string
+    deficit: string
   }
 }
 
@@ -98,6 +108,45 @@ describe('decodeEpoch', () => {
     expect(epoch.createdAt).toBe(BigInt(fixture.epoch.created_at))
     expect(epoch.totalDeposited).toBe(BigInt(fixture.epoch.total_deposited))
     expect(epoch.totalPromised).toBe(BigInt(fixture.epoch.total_promised))
+  })
+
+  it('reads deposit_seconds off the reference account', () => {
+    expect(epoch.depositSeconds).toBe(BigInt(fixture.epoch.deposit_seconds))
+  })
+
+  // The reference value — a thousand USDC over ninety days — still fits in a double, so on its
+  // own it proves nothing about the u128 path. This writes a span that does not fit: past 2^53
+  // a decoder that went through a number would come back with a neighbouring value, not throw.
+  it('reads a deposit_seconds too large for a double without losing a unit', () => {
+    // discriminator 8 + market 32 + maturity 8 + rate 2 + operator 32 + created 8 + two u64s.
+    const offset = 8 + 32 + 8 + 2 + 32 + 8 + 8 + 8
+    const huge = (1n << 70n) + 12_345n
+
+    const data = Buffer.from(fixture.epoch.base64, 'base64')
+    data.writeBigUInt64LE(huge & 0xff_ff_ff_ff_ff_ff_ff_ffn, offset)
+    data.writeBigUInt64LE(huge >> 64n, offset + 8)
+
+    expect(decodeEpoch(data).depositSeconds).toBe(huge)
+    expect(huge).toBeGreaterThan(BigInt(Number.MAX_SAFE_INTEGER))
+  })
+
+  it('reads an epoch that has not been settled as active', () => {
+    expect(epoch.status).toEqual({ kind: 'active' })
+  })
+
+  // FR-011a on the client side: the amount paid cannot be read without the shortfall
+  // coming with it, because they live in the same variant.
+  it('carries the shortfall inside the settled variant', () => {
+    const settled = decodeEpoch(Buffer.from(fixture.epoch_settled_with_deficit.base64, 'base64'))
+
+    expect(settled.status).toEqual({
+      kind: 'settledWithDeficit',
+      paid: BigInt(fixture.epoch_settled_with_deficit.paid),
+      deficit: BigInt(fixture.epoch_settled_with_deficit.deficit),
+    })
+
+    if (settled.status.kind !== 'settledWithDeficit') throw new Error('unreachable')
+    expect(settled.status.paid + settled.status.deficit).toBe(settled.totalPromised)
   })
 })
 

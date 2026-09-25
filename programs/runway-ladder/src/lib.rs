@@ -40,4 +40,9 @@ pub mod runway_ladder {
     ) -> Result<()> {
         state::ladder_deposit(ctx, amount, distribution)
     }
+
+    /// Permissionless: no signer, no destination, no amount (FR-011).
+    pub fn settle_epoch(ctx: Context<SettleEpoch>) -> Result<()> {
+        state::settle_epoch(ctx)
+    }
 }

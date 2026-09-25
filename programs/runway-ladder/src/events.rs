@@ -41,6 +41,29 @@ pub struct RungIssued {
     pub fee_paid: u64,
 }
 
+/// The epoch settled: the one computation every rung in it will be paid by (FR-011).
+///
+/// `accrued` and `realized` are the reason this event exists. Neither survives in the account —
+/// the status keeps only `paid` — and without them a deficit cannot be told apart from a
+/// promise that was too large to begin with. That distinction is the difference between
+/// "the market moved" and "the operator mispriced the epoch", and the treasurer is entitled
+/// to it.
+#[event]
+pub struct EpochSettled {
+    pub epoch: Pubkey,
+    pub maturity_ts: i64,
+    /// What the source produced over the epoch's `deposit_seconds`.
+    pub accrued: u64,
+    /// Principal plus accrued: what the epoch actually had before the buffer was asked.
+    pub realized: u64,
+    pub promised: u64,
+    /// Equals `promised` unless the buffer ran out first.
+    pub paid: u64,
+    /// How much the protocol buffer covered — zero when the source covered the promise alone.
+    pub from_buffer: u64,
+    pub settled_at: i64,
+}
+
 /// The deposit summary. Rungs have events of their own, but the amount the treasurer
 /// signed and the amount the protocol kept belong to none of them individually —
 /// without this event they would have to be gathered by addition (FR-022).

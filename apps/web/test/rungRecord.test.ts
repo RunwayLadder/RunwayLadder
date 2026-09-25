@@ -31,6 +31,8 @@ const epoch = (termDays: bigint): Epoch => ({
   createdAt: OPENED,
   totalDeposited: 0n,
   totalPromised: 0n,
+  depositSeconds: 0n,
+  status: { kind: 'active' },
   bump: 255,
 })
 

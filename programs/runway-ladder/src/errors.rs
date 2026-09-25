@@ -31,6 +31,9 @@ pub enum LadderError {
     #[msg("Epoch has not reached its maturity date yet")]
     EpochNotMatured,
 
+    /// The crank is permissionless, so a second call is expected rather than exceptional:
+    /// two keepers racing is ordinary operation. What must not happen is a second settlement,
+    /// because it would compute a new ratio against a buffer the first one already drew on.
     #[msg("Epoch has already been settled")]
     EpochAlreadySettled,
 

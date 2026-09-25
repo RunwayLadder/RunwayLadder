@@ -13,7 +13,7 @@ use mollusk_svm::Mollusk;
 use solana_account::Account;
 
 use runway_ladder::math::Distribution;
-use runway_ladder::state::{RollPolicy, YieldSource};
+use runway_ladder::state::{EpochStatus, RollPolicy, YieldSource};
 
 /// Anchor 0.32 and mollusk 0.15 are built on different majors of the solana crates
 /// (`solana-instruction` 2.x vs 3.x), so their `Pubkey`s are two different types
@@ -110,6 +110,41 @@ fn token_account(mint: &Pubkey, owner: &Pubkey, amount: u64) -> Account {
     .pack_into_slice(&mut data);
 
     Account { lamports: FUNDED, data, owner: key(spl_token::ID), executable: false, rent_epoch: 0 }
+}
+
+/// What an epoch has accumulated by the time it matures. A named struct rather than three
+/// `u64` arguments: `total_deposited` and `total_promised` are both amounts of the same asset
+/// and swapping them at a call site would compile and quietly settle a different epoch.
+pub struct Deposits {
+    pub total_deposited: u64,
+    pub total_promised: u64,
+    pub deposit_seconds: u128,
+    pub status: EpochStatus,
+}
+
+impl Default for Deposits {
+    fn default() -> Self {
+        Deposits {
+            total_deposited: 0,
+            total_promised: 0,
+            deposit_seconds: 0,
+            status: EpochStatus::Active,
+        }
+    }
+}
+
+impl Deposits {
+    /// One deposit held for `seconds`, promised at `rate_bps` — the shape `ladder_deposit`
+    /// would have produced, computed with the program's own `promise` so the stand cannot
+    /// disagree with it.
+    pub fn single(working: u64, rate_bps: u16, seconds: i64) -> Self {
+        Deposits {
+            total_deposited: working,
+            total_promised: runway_ladder::math::promise(working, rate_bps, seconds).unwrap(),
+            deposit_seconds: u128::from(working) * u128::try_from(seconds).unwrap(),
+            ..Deposits::default()
+        }
+    }
 }
 
 pub struct Env {
@@ -277,6 +312,18 @@ impl Env {
     /// The only way to get an epoch with a date in the past without turning the clock
     /// between instructions: on chain there is one clock for everything.
     pub fn seed_epoch(&mut self, maturity_ts: i64, rate_bps: u16) -> Pubkey {
+        self.seed_settled_epoch(maturity_ts, rate_bps, Deposits::default())
+    }
+
+    /// The same, with the accumulators filled. A matured epoch cannot be produced by running
+    /// `ladder_deposit`, because the deposit refuses an epoch whose date has passed — so the
+    /// state a settlement reads has to be placed into the stand directly.
+    pub fn seed_settled_epoch(
+        &mut self,
+        maturity_ts: i64,
+        rate_bps: u16,
+        deposits: Deposits,
+    ) -> Pubkey {
         let address = self.epoch(maturity_ts);
         let (_, bump) = Pubkey::find_program_address(
             &[b"epoch", self.market.as_ref(), &maturity_ts.to_le_bytes()],
@@ -289,8 +336,10 @@ impl Env {
             rate_bps,
             created_by: self.authority,
             created_at: NOW,
-            total_deposited: 0,
-            total_promised: 0,
+            total_deposited: deposits.total_deposited,
+            total_promised: deposits.total_promised,
+            deposit_seconds: deposits.deposit_seconds,
+            status: deposits.status,
             bump,
         };
 
@@ -309,6 +358,75 @@ impl Env {
         ));
 
         address
+    }
+
+    /// Puts a ready-made market and its two funded vaults into the stand.
+    ///
+    /// Settlement tests cannot reach this state by running `init_market`: that instruction
+    /// creates both vaults empty, and mollusk hands the chain one set of accounts, so there is
+    /// no point between the two instructions at which tokens could be added to the buffer.
+    pub fn seed_market(&mut self, fee_bps: u16, vault_amount: u64, buffer_amount: u64) {
+        let (_, bump) = Pubkey::find_program_address(
+            &[b"market", self.asset_mint.as_ref(), &self.source.seed()],
+            &runway_ladder::ID,
+        );
+
+        let market = runway_ladder::state::Market {
+            authority: self.authority,
+            asset_mint: self.asset_mint,
+            vault: self.vault,
+            buffer_vault: self.buffer_vault,
+            source: self.source,
+            fee_bps,
+            min_rung_amount: self.min_rung_amount,
+            bump,
+        };
+
+        let mut data = vec![0u8; 8 + runway_ladder::state::Market::INIT_SPACE];
+        market.try_serialize(&mut &mut data[..]).expect("serializes as Market");
+        self.put(
+            self.market,
+            Account {
+                lamports: FUNDED,
+                data,
+                owner: key(runway_ladder::ID),
+                executable: false,
+                rent_epoch: 0,
+            },
+        );
+
+        self.seed_vaults(vault_amount, buffer_amount);
+    }
+
+    /// Adds the account, or replaces the placeholder `Env::new` left at that address.
+    fn put(&mut self, address: Pubkey, account: Account) {
+        match self.accounts.iter_mut().find(|(k, _)| *k == key(address)) {
+            Some(slot) => slot.1 = account,
+            None => self.accounts.push((key(address), account)),
+        }
+    }
+
+    /// Replaces the market's vaults with real SPL accounts holding a balance. `init_market`
+    /// creates them empty, and a settlement needs a buffer that already has something in it.
+    pub fn seed_vaults(&mut self, vault_amount: u64, buffer_amount: u64) {
+        for (address, amount) in [(self.vault, vault_amount), (self.buffer_vault, buffer_amount)] {
+            self.put(address, token_account(&self.asset_mint, &self.market, amount));
+        }
+    }
+
+    pub fn settle_epoch(&self, maturity_ts: i64) -> svm::Instruction {
+        to_svm(Instruction {
+            program_id: runway_ladder::ID,
+            accounts: runway_ladder::accounts::SettleEpoch {
+                market: self.market,
+                epoch: self.epoch(maturity_ts),
+                vault: self.vault,
+                buffer_vault: self.buffer_vault,
+                token_program: spl_token::ID,
+            }
+            .to_account_metas(None),
+            data: runway_ladder::instruction::SettleEpoch {}.data(),
+        })
     }
 
     /// A treasury wallet with an asset balance.

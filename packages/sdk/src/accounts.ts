@@ -53,6 +53,33 @@ const marketSchema = z
     bump: m.bump,
   }))
 
+/**
+ * The epoch state stays a tagged union here too, for the same reason as the rung's: a flat
+ * `status: 'settled'` beside an optional `deficit` would make "settled below the promise,
+ * unmarked" representable — the state FR-011a forbids.
+ *
+ * `paid` rather than a ratio, matching the program: together with `totalPromised` it *is* the
+ * ratio, and it is the number a treasurer can check against the vault.
+ */
+const epochStatusSchema = z
+  .union([
+    z.object({ Active: z.object({}) }),
+    z.object({ Settled: z.object({ paid: u64 }) }),
+    z.object({ SettledWithDeficit: z.object({ paid: u64, deficit: u64 }) }),
+  ])
+  .transform((s) => {
+    if ('Settled' in s) return { kind: 'settled' as const, paid: s.Settled.paid }
+    if ('SettledWithDeficit' in s) {
+      return {
+        kind: 'settledWithDeficit' as const,
+        paid: s.SettledWithDeficit.paid,
+        deficit: s.SettledWithDeficit.deficit,
+      }
+    }
+
+    return { kind: 'active' as const }
+  })
+
 const epochSchema = z
   .object({
     market: publicKey,
@@ -62,6 +89,9 @@ const epochSchema = z
     created_at: u64,
     total_deposited: u64,
     total_promised: u64,
+    /** `Σ(principal × seconds)`, so a u128 — `u64` here only names the BN conversion. */
+    deposit_seconds: u64,
+    status: epochStatusSchema,
     bump,
   })
   .transform((e) => ({
@@ -72,6 +102,8 @@ const epochSchema = z
     createdAt: e.created_at,
     totalDeposited: e.total_deposited,
     totalPromised: e.total_promised,
+    depositSeconds: e.deposit_seconds,
+    status: e.status,
     bump: e.bump,
   }))
 
@@ -154,6 +186,7 @@ export type Epoch = z.output<typeof epochSchema>
 export type Ladder = z.output<typeof ladderSchema>
 export type Rung = z.output<typeof rungSchema>
 export type RungStatus = Rung['status']
+export type EpochStatus = Epoch['status']
 export type RollPolicy = Ladder['rollPolicy']
 
 export function decodeMarket(data: Buffer): Market {

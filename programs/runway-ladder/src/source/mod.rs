@@ -14,10 +14,15 @@ pub mod deterministic;
 /// together with the Kamino adapter (T046), which really moves funds through CPI.
 ///
 /// An interface designed for a single implementation is a guess, not an abstraction.
-pub fn accrued(source: &YieldSource, principal: u64, elapsed: i64) -> Result<u64> {
+///
+/// **The unit of time is `deposit_seconds`, not `(principal, elapsed)`** (2026-09-25). Deposits
+/// into one epoch arrive at different moments, so a single `elapsed` for the epoch does not
+/// exist; what does exist is the sum of `principal × elapsed` over its rungs, which
+/// `Epoch.deposit_seconds` accumulates as the deposits happen. Asking for the pair instead
+/// would force the caller to invent an average, and an average is where the amount on the
+/// treasurer's screen starts drifting from the amount the program pays.
+pub fn accrued(source: &YieldSource, deposit_seconds: u128) -> Result<u64> {
     match source {
-        YieldSource::Deterministic { rate_bps } => {
-            deterministic::accrued(*rate_bps, principal, elapsed)
-        }
+        YieldSource::Deterministic { rate_bps } => deterministic::accrued(*rate_bps, deposit_seconds),
     }
 }

@@ -361,6 +361,55 @@
           }
         }
       ]
+    },
+    {
+      "name": "settle_epoch",
+      "docs": [
+        "Permissionless: no signer, no destination, no amount (FR-011)."
+      ],
+      "discriminator": [
+        148,
+        223,
+        178,
+        38,
+        201,
+        158,
+        167,
+        13
+      ],
+      "accounts": [
+        {
+          "name": "market",
+          "relations": [
+            "epoch"
+          ]
+        },
+        {
+          "name": "epoch",
+          "writable": true
+        },
+        {
+          "name": "vault",
+          "docs": [
+            "Where the epoch's principal sits, and where the buffer's contribution lands."
+          ],
+          "writable": true
+        },
+        {
+          "name": "buffer_vault",
+          "docs": [
+            "The protocol buffer (FR-023). Its balance **is** the buffer in the waterfall — there is",
+            "no mirrored field to drift out of step with it, and moving the drawn amount out of it",
+            "here is what stops a second epoch from settling against money this one already used."
+          ],
+          "writable": true
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": []
     }
   ],
   "accounts": [
@@ -418,6 +467,19 @@
     }
   ],
   "events": [
+    {
+      "name": "EpochSettled",
+      "discriminator": [
+        32,
+        219,
+        45,
+        156,
+        250,
+        115,
+        190,
+        255
+      ]
+    },
     {
       "name": "LadderFunded",
       "discriminator": [
@@ -642,8 +704,140 @@
             "type": "u64"
           },
           {
+            "name": "deposit_seconds",
+            "docs": [
+              "`Σ(principal × seconds to maturity)` over the epoch's rungs, accumulated as they are",
+              "issued.",
+              "",
+              "The epoch has no single `elapsed` to hand the source adapter: deposits arrive at",
+              "different moments and each rung earns over its own span. This one accumulator carries",
+              "exactly the quantity the accrual formula is linear in, so settlement stays **one",
+              "computation per epoch** instead of a walk over the rungs — which is the same bound",
+              "that puts the payout ratio here rather than on each rung.",
+              "",
+              "`u128` because the product alone reaches `2^64` for large amounts over long spans."
+            ],
+            "type": "u128"
+          },
+          {
+            "name": "status",
+            "docs": [
+              "`Active` until the crank settles the epoch, then the payout ratio in union form."
+            ],
+            "type": {
+              "defined": {
+                "name": "EpochStatus"
+              }
+            }
+          },
+          {
             "name": "bump",
             "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "EpochSettled",
+      "docs": [
+        "The epoch settled: the one computation every rung in it will be paid by (FR-011).",
+        "",
+        "`accrued` and `realized` are the reason this event exists. Neither survives in the account —",
+        "the status keeps only `paid` — and without them a deficit cannot be told apart from a",
+        "promise that was too large to begin with. That distinction is the difference between",
+        "\"the market moved\" and \"the operator mispriced the epoch\", and the treasurer is entitled",
+        "to it."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "epoch",
+            "type": "pubkey"
+          },
+          {
+            "name": "maturity_ts",
+            "type": "i64"
+          },
+          {
+            "name": "accrued",
+            "docs": [
+              "What the source produced over the epoch's `deposit_seconds`."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "realized",
+            "docs": [
+              "Principal plus accrued: what the epoch actually had before the buffer was asked."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "promised",
+            "type": "u64"
+          },
+          {
+            "name": "paid",
+            "docs": [
+              "Equals `promised` unless the buffer ran out first."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "from_buffer",
+            "docs": [
+              "How much the protocol buffer covered — zero when the source covered the promise alone."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "settled_at",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "EpochStatus",
+      "docs": [
+        "What happened to the epoch as a whole. A union rather than a status flag beside a",
+        "`payout_ratio` field: the pair would make \"settled below the promise, unmarked\"",
+        "representable, which is the one state FR-011a forbids — the same reasoning that shaped",
+        "`RungStatus`, applied one level up.",
+        "",
+        "The variants carry `paid` rather than a ratio. A ratio would have to be a fixed-point",
+        "number chosen here and re-derived at every redemption, while `paid` together with",
+        "`total_promised` **is** the ratio, exactly as `math::payout` consumes it — and it is the",
+        "number a treasurer can check against the vault without trusting our rounding."
+      ],
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Active"
+          },
+          {
+            "name": "Settled",
+            "fields": [
+              {
+                "name": "paid",
+                "type": "u64"
+              }
+            ]
+          },
+          {
+            "name": "SettledWithDeficit",
+            "fields": [
+              {
+                "name": "paid",
+                "type": "u64"
+              },
+              {
+                "name": "deficit",
+                "type": "u64"
+              }
+            ]
           }
         ]
       }

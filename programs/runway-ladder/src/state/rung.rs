@@ -139,7 +139,8 @@ pub fn ladder_deposit<'info>(
         // The promise is computed from what really went to work, not from the
         // principal: otherwise the protocol would promise yield on funds it does not have.
         let working = part.checked_sub(fee_paid).ok_or(LadderError::MathOverflow)?;
-        let promised = promise(working, epoch.rate_bps, epoch.maturity_ts - now)?;
+        let seconds = epoch.maturity_ts - now;
+        let promised = promise(working, epoch.rate_bps, seconds)?;
 
         let epoch_key = epoch.key();
         let seeds: &[&[u8]] = &[b"rung", ladder_key.as_ref(), epoch_key.as_ref()];
@@ -189,6 +190,16 @@ pub fn ladder_deposit<'info>(
             epoch.total_deposited.checked_add(working).ok_or(LadderError::MathOverflow)?;
         epoch.total_promised =
             epoch.total_promised.checked_add(promised).ok_or(LadderError::MathOverflow)?;
+
+        // The same product the promise above was computed from, kept instead of recomputed:
+        // it is the one thing `settle_epoch` cannot reconstruct later, because by then the
+        // moment this rung was issued is gone. `seconds` is positive — the maturity was
+        // checked to lie ahead — so the conversion cannot fail on a negative.
+        let rung_seconds = u128::from(working)
+            .checked_mul(u128::try_from(seconds).map_err(|_| LadderError::InvalidMaturity)?)
+            .ok_or(LadderError::MathOverflow)?;
+        epoch.deposit_seconds =
+            epoch.deposit_seconds.checked_add(rung_seconds).ok_or(LadderError::MathOverflow)?;
         epoch.exit(&crate::ID)?;
     }
 

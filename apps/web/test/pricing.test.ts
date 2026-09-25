@@ -19,6 +19,8 @@ const epoch = (over: Partial<Epoch> = {}): Epoch => ({
   createdAt: NOW - 2n * DAY,
   totalDeposited: 0n,
   totalPromised: 0n,
+  depositSeconds: 0n,
+  status: { kind: 'active' },
   bump: 255,
   ...over,
 })

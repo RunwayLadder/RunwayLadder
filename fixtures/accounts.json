@@ -12,7 +12,7 @@
     "bump": 254
   },
   "epoch": {
-    "base64": "XVN4WZeKmGwFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQDSSWsAAAAAIAMGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgDxU2UAAAAAYKR0OwAAAACI4qA8AAAAAP0=",
+    "base64": "XVN4WZeKmGwFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQDSSWsAAAAAIAMGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgDxU2UAAAAAYKR0OwAAAACI4qA8AAAAAACgetuMjhsAAAAAAAAAAAAA/Q==",
     "market": "LbUiWL3xVV8hTFYBVdbTNrpDo41NKS6o3LHHuDzjfcY",
     "maturity_ts": 1800000000,
     "rate_bps": 800,
@@ -20,7 +20,9 @@
     "created_at": 1700000000,
     "total_deposited": 997500000,
     "total_promised": 1017176712,
-    "bump": 253
+    "bump": 253,
+    "deposit_seconds": "7756560000000000",
+    "status": "active"
   },
   "ladder": {
     "base64": "fZIj/ioHzN4BAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAVq69wPsfb5ZSAmQBNfm7QQDTrpZpNYWsoqK3gAHg3fQBwAAAAAAAAAEAAAAAQDSSWsAAAAA/Q==",
@@ -42,5 +44,20 @@
     "status": "redeemedWithDeficit",
     "settled_amount": 250000000,
     "bump": 252
+  },
+  "epoch_settled_with_deficit": {
+    "base64": "XVN4WZeKmGwFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQDSSWsAAAAAIAMGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgDxU2UAAAAAYKR0OwAAAACI4qA8AAAAAACgetuMjhsAAAAAAAAAAAAC4cuQNgAAAACnFhAGAAAAAP0=",
+    "market": "LbUiWL3xVV8hTFYBVdbTNrpDo41NKS6o3LHHuDzjfcY",
+    "maturity_ts": 1800000000,
+    "rate_bps": 800,
+    "created_by": "QWmroo4YnnMqYW3cnxWkFdaTxGD3P7vMSzwMHGbUzwF",
+    "created_at": 1700000000,
+    "total_deposited": 997500000,
+    "total_promised": 1017176712,
+    "deposit_seconds": "7756560000000000",
+    "status": "settledWithDeficit",
+    "paid": "915459041",
+    "deficit": "101717671",
+    "bump": 253
   }
 }
