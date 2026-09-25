@@ -35,10 +35,8 @@ export type WaterfallCase = {
   name: string
   promised: string
   realized: string
-  yield_pool: string
   buffer: string
   paid: string
-  from_yield_pool: string
   from_buffer: string
   surplus: string
   deficit: string

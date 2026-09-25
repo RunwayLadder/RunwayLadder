@@ -10,13 +10,9 @@ export type EpochMaturity = {
    */
   realized: bigint
   /**
-   * The yield side's income held in the epoch. It stands first in the waterfall: the yield
-   * part is the part that carries the risk of the rate deviating from the promise (FR-011).
-   */
-  yieldPool: bigint
-  /**
-   * The protocol buffer, filled by fees (FR-023). Second in the waterfall — it covers what
-   * the yield pool could not.
+   * The protocol buffer: the only thing standing between a shortfall and the treasury's
+   * principal. Filled by fees (FR-023) and by the surplus of epochs that came in above
+   * their promise (FR-011b).
    */
   buffer: bigint
 }
@@ -35,9 +31,8 @@ export type Settlement =
       readonly promised: bigint
       /** Equals `promised`. */
       readonly paid: bigint
-      /** What is left above the promise — it belongs to the yield side (FR-011b). */
+      /** What is left above the promise — it goes to the protocol buffer (FR-011b). */
       readonly surplus: bigint
-      readonly fromYieldPool: bigint
       readonly fromBuffer: bigint
     }
   | {
@@ -47,31 +42,34 @@ export type Settlement =
       readonly paid: bigint
       /** `promised - paid`, never zero. */
       readonly deficit: bigint
-      /** Equals the whole yield pool: the haircut comes only after it is drained. */
-      readonly fromYieldPool: bigint
       /** Equals the whole buffer: the haircut comes only after it is drained. */
       readonly fromBuffer: bigint
     }
 
 /**
- * The waterfall: yield pool → buffer → pro-rata haircut (FR-011). The only implementation
- * of the order, mirrored one-to-one in `programs/runway-ladder/src/math.rs` on the same
- * vectors.
+ * Covering a shortfall: the protocol buffer, then a pro-rata haircut (FR-011). The only
+ * implementation of the order, mirrored one-to-one in `programs/runway-ladder/src/math.rs`
+ * on the same vectors.
  *
- * The order is what makes the promise a promise. The yield side signed up for the risk of
- * the rate, so its income goes first; the buffer is the protocol's own money, so it goes
- * second; the treasury takes a haircut only when both are gone — and the haircut is a
- * separate variant, never a smaller number under the same label.
+ * The order is what makes the promise a promise. The buffer is the protocol's own money and
+ * it goes first; the treasury takes a haircut only when the buffer is gone — and the haircut
+ * is a separate variant, never a smaller number under the same label.
  *
- * Money is never created: `realized + fromYieldPool + fromBuffer = paid + surplus` holds
- * exactly, and each step draws at most what its pool holds.
+ * **There is no yield-pool step, and this is a decision rather than an omission
+ * (2026-09-25).** A three-step order once put "the yield owners' income" ahead of the
+ * buffer, but that income is already inside `realized`: by the time `realized < promised`
+ * the yield side has received nothing, so the step could only ever draw zero. Money above
+ * `realized` would have to come from a third party underwriting the epoch, and the product
+ * has no such party — see `docs/SPEC.md`, FR-011 and "Поза скоупом".
+ *
+ * Money is never created: `realized + fromBuffer = paid + surplus` holds exactly, and the
+ * buffer step draws at most what the buffer holds.
  */
 export function waterfall(epoch: EpochMaturity): Settlement {
-  const { promised, realized, yieldPool, buffer } = epoch
+  const { promised, realized, buffer } = epoch
 
   assertAmount('promised', promised)
   assertAmount('realized', realized)
-  assertAmount('yieldPool', yieldPool)
   assertAmount('buffer', buffer)
 
   if (realized >= promised) {
@@ -80,21 +78,17 @@ export function waterfall(epoch: EpochMaturity): Settlement {
       promised,
       paid: promised,
       surplus: realized - promised,
-      fromYieldPool: 0n,
       fromBuffer: 0n,
     }
   }
 
   let shortfall = promised - realized
 
-  const fromYieldPool = shortfall < yieldPool ? shortfall : yieldPool
-  shortfall -= fromYieldPool
-
   const fromBuffer = shortfall < buffer ? shortfall : buffer
   shortfall -= fromBuffer
 
   if (shortfall === 0n) {
-    return { status: 'settled', promised, paid: promised, surplus: 0n, fromYieldPool, fromBuffer }
+    return { status: 'settled', promised, paid: promised, surplus: 0n, fromBuffer }
   }
 
   return {
@@ -102,7 +96,6 @@ export function waterfall(epoch: EpochMaturity): Settlement {
     promised,
     paid: promised - shortfall,
     deficit: shortfall,
-    fromYieldPool,
     fromBuffer,
   }
 }
@@ -110,7 +103,7 @@ export function waterfall(epoch: EpochMaturity): Settlement {
 /**
  * What one rung receives out of the epoch's settlement: its promise scaled by
  * `paid / promised`. One ratio for the whole epoch, so a rung is paid the same whether it
- * is redeemed first or last — a per-rung waterfall would favour whoever came first.
+ * is redeemed first or last — a per-rung haircut would favour whoever came first.
  *
  * Rounds down, so the sum over the rungs never exceeds `paid`: rounding leaves dust in the
  * vault rather than creating a unit that is not there. Under a deficit every rung with a

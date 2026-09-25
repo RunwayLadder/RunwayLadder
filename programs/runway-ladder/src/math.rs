@@ -144,21 +144,19 @@ pub fn split(total: u64, distribution: &Distribution) -> Result<Vec<u64>> {
 
 /// What the epoch holds on its maturity date, before anyone is paid.
 ///
-/// A struct rather than four `u64` arguments: swapping `yield_pool` and `buffer` at a call site
-/// would still compile and would still settle — just in the wrong order.
+/// A struct rather than three `u64` arguments: swapping `realized` and `buffer` at a call site
+/// would still compile and would still settle — just on the wrong numbers.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct EpochMaturity {
     /// The sum of promises across the epoch — `Epoch.total_promised`.
     pub promised: u64,
     /// What the yield source actually returned: the principal that went to work plus the income
-    /// it accrued. A source that lost principal simply returns less than it took, so the
-    /// waterfall does not depend on the principal being intact.
+    /// it accrued. A source that lost principal simply returns less than it took, so covering a
+    /// shortfall does not depend on the principal being intact.
     pub realized: u64,
-    /// The yield side's income held in the epoch. It stands first in the waterfall: the yield part
-    /// is the part that carries the risk of the rate deviating from the promise (FR-011).
-    pub yield_pool: u64,
-    /// The protocol buffer, filled by fees (FR-023). Second in the waterfall — it covers what the
-    /// yield pool could not.
+    /// The protocol buffer: the only thing standing between a shortfall and the treasury's
+    /// principal. Filled by fees (FR-023) and by the surplus of epochs that came in above their
+    /// promise (FR-011b).
     pub buffer: u64,
 }
 
@@ -175,9 +173,8 @@ pub enum Settlement {
         promised: u64,
         /// Equals `promised`.
         paid: u64,
-        /// What is left above the promise — it belongs to the yield side (FR-011b).
+        /// What is left above the promise — it goes to the protocol buffer (FR-011b).
         surplus: u64,
-        from_yield_pool: u64,
         from_buffer: u64,
     },
     SettledWithDeficit {
@@ -186,15 +183,13 @@ pub enum Settlement {
         paid: u64,
         /// `promised - paid`, never zero.
         deficit: u64,
-        /// Equals the whole yield pool: the haircut comes only after it is drained.
-        from_yield_pool: u64,
         /// Equals the whole buffer: the haircut comes only after it is drained.
         from_buffer: u64,
     },
 }
 
 impl Settlement {
-    /// There are accessors only for the four fields both variants carry. `surplus` and `deficit`
+    /// There are accessors only for the three fields both variants carry. `surplus` and `deficit`
     /// deliberately have none: they are the numbers that say which variant this is, and reading
     /// one of them without seeing the status is the mistake the split exists to prevent.
     pub fn promised(&self) -> u64 {
@@ -210,13 +205,6 @@ impl Settlement {
         }
     }
 
-    pub fn from_yield_pool(&self) -> u64 {
-        match self {
-            Settlement::Settled { from_yield_pool, .. }
-            | Settlement::SettledWithDeficit { from_yield_pool, .. } => *from_yield_pool,
-        }
-    }
-
     pub fn from_buffer(&self) -> u64 {
         match self {
             Settlement::Settled { from_buffer, .. }
@@ -225,60 +213,55 @@ impl Settlement {
     }
 }
 
-/// The waterfall: yield pool -> buffer -> pro-rata haircut (FR-011). The only implementation of
-/// the order on chain, mirrored one-to-one by `waterfall()` in `packages/math/src/waterfall.ts`
-/// on the vectors in `fixtures/vectors.json`.
+/// Covering a shortfall: the protocol buffer, then a pro-rata haircut (FR-011). The only
+/// implementation of the order on chain, mirrored one-to-one by `waterfall()` in
+/// `packages/math/src/waterfall.ts` on the vectors in `fixtures/vectors.json`.
 ///
-/// The order is what makes the promise a promise. The yield side signed up for the risk of the
-/// rate, so its income goes first; the buffer is the protocol's own money, so it goes second; the
-/// treasury takes a haircut only when both are gone — and the haircut is a separate variant, never
-/// a smaller number under the same label.
+/// The order is what makes the promise a promise. The buffer is the protocol's own money and it
+/// goes first; the treasury takes a haircut only when the buffer is gone — and the haircut is a
+/// separate variant, never a smaller number under the same label.
 ///
-/// Money is never created: `realized + from_yield_pool + from_buffer == paid + surplus` holds
-/// exactly, and each step draws at most what its pool holds.
+/// **There is no yield-pool step, and this is a decision rather than an omission (2026-09-25).**
+/// A three-step order once put "the yield owners' income" ahead of the buffer, but that income is
+/// already inside `realized`: by the time `realized < promised` the yield side has received
+/// nothing, so the step could only ever draw zero. Money above `realized` would have to come from
+/// a third party underwriting the epoch, and the product has no such party — see `docs/SPEC.md`,
+/// FR-011.
+///
+/// Money is never created: `realized + from_buffer == paid + surplus` holds exactly, and the
+/// buffer step draws at most what the buffer holds.
 pub fn waterfall(epoch: EpochMaturity) -> Result<Settlement> {
-    let EpochMaturity { promised, realized, yield_pool, buffer } = epoch;
+    let EpochMaturity { promised, realized, buffer } = epoch;
 
     if realized >= promised {
         return Ok(Settlement::Settled {
             promised,
             paid: promised,
             surplus: realized.checked_sub(promised).ok_or(LadderError::MathOverflow)?,
-            from_yield_pool: 0,
             from_buffer: 0,
         });
     }
 
     let mut shortfall = promised.checked_sub(realized).ok_or(LadderError::MathOverflow)?;
 
-    let from_yield_pool = shortfall.min(yield_pool);
-    shortfall = shortfall.checked_sub(from_yield_pool).ok_or(LadderError::MathOverflow)?;
-
     let from_buffer = shortfall.min(buffer);
     shortfall = shortfall.checked_sub(from_buffer).ok_or(LadderError::MathOverflow)?;
 
     if shortfall == 0 {
-        return Ok(Settlement::Settled {
-            promised,
-            paid: promised,
-            surplus: 0,
-            from_yield_pool,
-            from_buffer,
-        });
+        return Ok(Settlement::Settled { promised, paid: promised, surplus: 0, from_buffer });
     }
 
     Ok(Settlement::SettledWithDeficit {
         promised,
         paid: promised.checked_sub(shortfall).ok_or(LadderError::MathOverflow)?,
         deficit: shortfall,
-        from_yield_pool,
         from_buffer,
     })
 }
 
 /// What one rung receives out of the epoch's settlement: its promise scaled by `paid / promised`.
 /// One ratio for the whole epoch, so a rung is paid the same whether it is redeemed first or last
-/// — a per-rung waterfall would favour whoever came first.
+/// — a per-rung haircut would favour whoever came first.
 ///
 /// Rounds down, so the sum over the rungs never exceeds `paid`: rounding leaves dust in the vault
 /// rather than creating a unit that is not there. Under a deficit every rung with a non-zero
@@ -476,36 +459,36 @@ mod tests {
 
     fn settlement_of(paid: u64, promised: u64) -> Settlement {
         if paid == promised {
-            Settlement::Settled { promised, paid, surplus: 0, from_yield_pool: 0, from_buffer: 0 }
+            Settlement::Settled { promised, paid, surplus: 0, from_buffer: 0 }
         } else {
             Settlement::SettledWithDeficit {
                 promised,
                 paid,
                 deficit: promised - paid,
-                from_yield_pool: 0,
                 from_buffer: 0,
             }
         }
     }
 
-    /// The grid the sweeps below run over: every combination of an epoch's four sums. The
+    /// The grid the sweeps below run over: every combination of an epoch's three sums. The
     /// TypeScript side walks 400 simulated rate trajectories (SC-004); replicating its seeded
     /// generator here would only reproduce the generator, so this side takes the other approach
     /// and covers the ends instead — `u64::MAX` is where a mirror that forgot `u128` in `payout`
     /// stops agreeing with it.
+    ///
+    /// `BUFFER` carries the values that used to be split across two axes, so the grid keeps
+    /// reaching the same boundaries with one dimension fewer: 180 epochs instead of 480.
     fn sweep() -> Vec<EpochMaturity> {
         const PROMISED: [u64; 5] = [0, 3, 1_000, 1_030_000_000, u64::MAX];
         const REALIZED: [u64; 6] = [0, 1, 999, 1_000, 1_020_000_000, u64::MAX];
-        const YIELD_POOL: [u64; 4] = [0, 1, 5_000_000, 999_999_999];
-        const BUFFER: [u64; 4] = [0, 1, 2_000_000, u64::MAX];
+        const BUFFER: [u64; 6] = [0, 1, 2_000_000, 5_000_000, 999_999_999, u64::MAX];
 
-        let mut epochs = Vec::with_capacity(PROMISED.len() * REALIZED.len() * 16);
+        let mut epochs =
+            Vec::with_capacity(PROMISED.len() * REALIZED.len() * BUFFER.len());
         for promised in PROMISED {
             for realized in REALIZED {
-                for yield_pool in YIELD_POOL {
-                    for buffer in BUFFER {
-                        epochs.push(EpochMaturity { promised, realized, yield_pool, buffer });
-                    }
+                for buffer in BUFFER {
+                    epochs.push(EpochMaturity { promised, realized, buffer });
                 }
             }
         }
@@ -526,17 +509,11 @@ mod tests {
             let settlement = waterfall(EpochMaturity {
                 promised: u64_field(case, "promised"),
                 realized: u64_field(case, "realized"),
-                yield_pool: u64_field(case, "yield_pool"),
                 buffer: u64_field(case, "buffer"),
             })
             .unwrap_or_else(|_| panic!("{name}"));
 
             assert_eq!(settlement.paid(), u64_field(case, "paid"), "{name}: paid");
-            assert_eq!(
-                settlement.from_yield_pool(),
-                u64_field(case, "from_yield_pool"),
-                "{name}: from the yield pool"
-            );
             assert_eq!(
                 settlement.from_buffer(),
                 u64_field(case, "from_buffer"),
@@ -565,21 +542,18 @@ mod tests {
     #[test]
     fn waterfall_reaches_every_branch_of_the_order() {
         let mut by_source = 0;
-        let mut by_yield_pool = 0;
         let mut by_buffer = 0;
         let mut with_deficit = 0;
         let mut with_surplus = 0;
 
         for epoch in sweep() {
             match waterfall(epoch).unwrap() {
-                Settlement::Settled { surplus, from_yield_pool, from_buffer, .. } => {
+                Settlement::Settled { surplus, from_buffer, .. } => {
                     if surplus > 0 {
                         with_surplus += 1;
                     }
                     if from_buffer > 0 {
                         by_buffer += 1;
-                    } else if from_yield_pool > 0 {
-                        by_yield_pool += 1;
                     } else {
                         by_source += 1;
                     }
@@ -592,7 +566,6 @@ mod tests {
         // of them — and this test is what notices when it stops.
         for (branch, count) in [
             ("source", by_source),
-            ("yield pool", by_yield_pool),
             ("buffer", by_buffer),
             ("deficit", with_deficit),
             ("surplus", with_surplus),
@@ -602,20 +575,18 @@ mod tests {
     }
 
     #[test]
-    fn waterfall_never_creates_money_and_never_overdraws_a_pool() {
+    fn waterfall_never_creates_money_and_never_overdraws_the_buffer() {
         for epoch in sweep() {
             let settlement = waterfall(epoch).unwrap();
             let (surplus, _) = surplus_and_deficit(&settlement);
 
             assert!(settlement.paid() <= settlement.promised(), "{epoch:?}");
-            assert!(settlement.from_yield_pool() <= epoch.yield_pool, "{epoch:?}");
             assert!(settlement.from_buffer() <= epoch.buffer, "{epoch:?}");
 
-            // Checked in u128: `realized` may already be `u64::MAX` before a pool adds anything.
+            // Checked in u128: `realized` may already be `u64::MAX` before the buffer adds
+            // anything.
             assert_eq!(
-                u128::from(epoch.realized)
-                    + u128::from(settlement.from_yield_pool())
-                    + u128::from(settlement.from_buffer()),
+                u128::from(epoch.realized) + u128::from(settlement.from_buffer()),
                 u128::from(settlement.paid()) + u128::from(surplus),
                 "{epoch:?}"
             );
@@ -623,30 +594,20 @@ mod tests {
     }
 
     #[test]
-    fn waterfall_drains_the_pools_in_order() {
+    fn waterfall_drains_the_buffer_before_the_haircut() {
         for epoch in sweep() {
             match waterfall(epoch).unwrap() {
-                Settlement::Settled { promised, paid, surplus, from_yield_pool, from_buffer } => {
+                Settlement::Settled { promised, paid, surplus, from_buffer } => {
                     assert_eq!(paid, promised, "{epoch:?}");
-                    // The buffer is second: it is touched only once the yield pool is empty.
-                    if from_buffer > 0 {
-                        assert_eq!(from_yield_pool, epoch.yield_pool, "{epoch:?}");
-                    }
                     // A surplus means the source covered the promise on its own.
                     if surplus > 0 {
-                        assert_eq!(from_yield_pool, 0, "{epoch:?}");
                         assert_eq!(from_buffer, 0, "{epoch:?}");
                     }
                 }
-                Settlement::SettledWithDeficit {
-                    promised,
-                    paid,
-                    deficit,
-                    from_yield_pool,
-                    from_buffer,
-                } => {
-                    // The haircut is last: both pools are gone before the treasury loses a unit.
-                    assert_eq!(from_yield_pool, epoch.yield_pool, "{epoch:?}");
+                Settlement::SettledWithDeficit { promised, paid, deficit, from_buffer } => {
+                    // The haircut is last: the buffer is gone before the treasury loses a unit.
+                    // With one step left, "buffer first" and "haircut last" are the same
+                    // statement, and this is where it is asserted.
                     assert_eq!(from_buffer, epoch.buffer, "{epoch:?}");
                     assert!(paid < promised, "{epoch:?}");
                     assert_eq!(deficit, promised - paid, "{epoch:?}");

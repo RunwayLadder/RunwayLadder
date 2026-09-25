@@ -9,19 +9,17 @@ describe('waterfall', () => {
     const s = waterfall({
       promised: BigInt(c.promised),
       realized: BigInt(c.realized),
-      yieldPool: BigInt(c.yield_pool),
       buffer: BigInt(c.buffer),
     })
 
     expect(s.paid).toBe(BigInt(c.paid))
-    expect(s.fromYieldPool).toBe(BigInt(c.from_yield_pool))
     expect(s.fromBuffer).toBe(BigInt(c.from_buffer))
     expect(s.status === 'settled' ? s.surplus : 0n).toBe(BigInt(c.surplus))
     expect(s.status === 'settledWithDeficit' ? s.deficit : 0n).toBe(BigInt(c.deficit))
   })
 
   it('rejects a negative amount in any position', () => {
-    const ok: EpochMaturity = { promised: 1n, realized: 1n, yieldPool: 1n, buffer: 1n }
+    const ok: EpochMaturity = { promised: 1n, realized: 1n, buffer: 1n }
     for (const key of Object.keys(ok) as (keyof EpochMaturity)[]) {
       expect(() => waterfall({ ...ok, [key]: -1n })).toThrow(RangeError)
     }
@@ -64,48 +62,45 @@ describe('SC-004: the waterfall over simulated trajectories', () => {
   it('exercises every branch of the order', () => {
     const settled = runs.filter((r) => r.settlement.status === 'settled')
     const deficit = runs.filter((r) => r.settlement.status === 'settledWithDeficit')
-    const bySource = settled.filter((r) => r.settlement.fromYieldPool === 0n)
-    const byYieldPool = settled.filter(
-      (r) => r.settlement.fromYieldPool > 0n && r.settlement.fromBuffer === 0n,
-    )
+    // These two partition `settled` exactly: the source either covered the promise on its
+    // own or the buffer made up the rest. Under three steps the split was blurred, because
+    // a run could leave the yield pool untouched and still draw on the buffer.
+    const bySource = settled.filter((r) => r.settlement.fromBuffer === 0n)
     const byBuffer = settled.filter((r) => r.settlement.fromBuffer > 0n)
     const halved = runs.filter((r) => r.halved)
 
     expect(runs).toHaveLength(TRAJECTORIES)
+    expect(bySource.length + byBuffer.length).toBe(settled.length)
     expect(halved.length).toBeGreaterThanOrEqual(TRAJECTORIES / 4)
-    for (const branch of [bySource, byYieldPool, byBuffer, deficit]) {
+    for (const branch of [bySource, byBuffer, deficit]) {
       expect(branch.length).toBeGreaterThanOrEqual(20)
     }
     expect(halved.some((r) => r.settlement.status === 'settledWithDeficit')).toBe(true)
     expect(halved.some((r) => r.settlement.status === 'settled')).toBe(true)
   })
 
-  it('never creates money and never draws more than a pool holds', () => {
+  it('never creates money and never draws more than the buffer holds', () => {
     for (const { epoch, settlement: s } of runs) {
       expect(s.paid).toBeLessThanOrEqual(s.promised)
-      expect(s.fromYieldPool).toBeLessThanOrEqual(epoch.yieldPool)
       expect(s.fromBuffer).toBeLessThanOrEqual(epoch.buffer)
 
       const surplus = s.status === 'settled' ? s.surplus : 0n
-      expect(epoch.realized + s.fromYieldPool + s.fromBuffer).toBe(s.paid + surplus)
+      expect(epoch.realized + s.fromBuffer).toBe(s.paid + surplus)
     }
   })
 
-  it('drains the pools in order: yield pool, then buffer, then the haircut', () => {
+  it('drains the buffer before the haircut, never alongside it', () => {
     for (const { epoch, settlement: s } of runs) {
-      if (s.fromBuffer > 0n) expect(s.fromYieldPool).toBe(epoch.yieldPool)
       if (s.status === 'settledWithDeficit') {
-        expect(s.fromYieldPool).toBe(epoch.yieldPool)
+        // The haircut is reachable only from an empty buffer. This is the whole order:
+        // with one step left, "buffer first" and "haircut last" are the same statement.
         expect(s.fromBuffer).toBe(epoch.buffer)
         expect(s.deficit).toBe(s.promised - s.paid)
         expect(s.deficit).toBeGreaterThan(0n)
       }
       if (s.status === 'settled') {
         expect(s.paid).toBe(s.promised)
-        if (s.surplus > 0n) {
-          expect(s.fromYieldPool).toBe(0n)
-          expect(s.fromBuffer).toBe(0n)
-        }
+        if (s.surplus > 0n) expect(s.fromBuffer).toBe(0n)
       }
     }
   })
@@ -130,15 +125,8 @@ describe('SC-004: the waterfall over simulated trajectories', () => {
 
 function settlementOf(paid: bigint, promised: bigint): Settlement {
   return paid === promised
-    ? { status: 'settled', promised, paid, surplus: 0n, fromYieldPool: 0n, fromBuffer: 0n }
-    : {
-        status: 'settledWithDeficit',
-        promised,
-        paid,
-        deficit: promised - paid,
-        fromYieldPool: 0n,
-        fromBuffer: 0n,
-      }
+    ? { status: 'settled', promised, paid, surplus: 0n, fromBuffer: 0n }
+    : { status: 'settledWithDeficit', promised, paid, deficit: promised - paid, fromBuffer: 0n }
 }
 
 type Run = {
@@ -187,11 +175,18 @@ function simulate(seed: number): Run {
   const lost = rand.next() < 0.05 ? working / BigInt(2 + rand.int(20)) : 0n
   const realized = working + accrued - lost
 
+  // The buffer is drawn at two scales because both matter and they differ by orders of
+  // magnitude: one sized against the epoch's expected income, which decides whether a
+  // shortfall is covered at all, and one sized against accumulated fees, which is the
+  // realistic size early in the protocol's life. Keeping both draws also keeps the
+  // generator's call sequence unchanged from the three-step version this replaces, so the
+  // same 400 seeds yield the same `paid` and `deficit` — SC-004 stays closed on the same
+  // trajectories rather than on a fresh set that happens to pass.
   const expectedIncome = promised - working > 0n ? promised - working : 1n
-  const yieldPool = rand.next() < 0.3 ? 0n : rand.amount(0n, expectedIncome * 2n)
-  const buffer = rand.next() < 0.3 ? 0n : rand.amount(0n, working / 100n)
+  const againstIncome = rand.next() < 0.3 ? 0n : rand.amount(0n, expectedIncome * 2n)
+  const againstFees = rand.next() < 0.3 ? 0n : rand.amount(0n, working / 100n)
 
-  const epoch: EpochMaturity = { promised, realized, yieldPool, buffer }
+  const epoch: EpochMaturity = { promised, realized, buffer: againstIncome + againstFees }
   return { epoch, rungs, settlement: waterfall(epoch), halved }
 }
 
