@@ -107,9 +107,10 @@ pub fn create_epoch(ctx: Context<CreateEpoch>, maturity_ts: i64, rate_bps: u16) 
 /// Settling the epoch: one computation, one ratio, for everyone who entered it (FR-011).
 ///
 /// **Permissionless and without a signer.** The instruction takes no destination and no amount,
-/// and the only funds it moves go from the protocol's own buffer into the protocol's own vault,
-/// so there is nothing for a caller to divert — the same property `roll_rung` relies on. The
-/// transaction fee payer is whoever sends it; the program does not care who that is.
+/// and every transfer it makes runs between the protocol's own accounts — the source reserve,
+/// the vault and the buffer — so there is nothing for a caller to divert. The same property
+/// `roll_rung` relies on. The transaction fee payer is whoever sends it; the program does not
+/// care who that is.
 #[derive(Accounts)]
 pub struct SettleEpoch<'info> {
     pub market: Account<'info, Market>,
@@ -117,7 +118,8 @@ pub struct SettleEpoch<'info> {
     #[account(mut, has_one = market)]
     pub epoch: Account<'info, Epoch>,
 
-    /// Where the epoch's principal sits, and where the buffer's contribution lands.
+    /// Where the epoch's principal sits, and where the source's income and the buffer's
+    /// contribution land.
     #[account(mut, address = market.vault)]
     pub vault: Account<'info, TokenAccount>,
 
@@ -126,6 +128,12 @@ pub struct SettleEpoch<'info> {
     /// here is what stops a second epoch from settling against money this one already used.
     #[account(mut, address = market.buffer_vault)]
     pub buffer_vault: Account<'info, TokenAccount>,
+
+    /// The deterministic source's income, held as tokens. Checked by its seeds and not merely
+    /// by its owner: the vault and the buffer are owned by the market too, and passing the
+    /// vault here would count the epoch's own principal a second time as income.
+    #[account(mut, seeds = [b"reserve", market.key().as_ref()], bump)]
+    pub source_reserve: Account<'info, TokenAccount>,
 
     pub token_program: Program<'info, Token>,
 }
@@ -139,16 +147,24 @@ pub fn settle_epoch(ctx: Context<SettleEpoch>) -> Result<()> {
         LadderError::EpochAlreadySettled
     );
 
-    // What the source returned for the whole epoch. The span ends at `maturity_ts`, which is
-    // already baked into `deposit_seconds` — deliberately, because the crank is permissionless
-    // and may arrive an hour or three days late. Accruing to `now` would let the moment someone
-    // chose to send the transaction decide how much each rung is paid.
+    // What the source owes the whole epoch. The span ends at `maturity_ts`, which is already
+    // baked into `deposit_seconds` — deliberately, because the crank is permissionless and may
+    // arrive an hour or three days late. Accruing to `now` would let the moment someone chose
+    // to send the transaction decide how much each rung is paid.
     let accrued = source::accrued(&ctx.accounts.market.source, ctx.accounts.epoch.deposit_seconds)?;
+
+    // What the source actually delivers: the formula is a claim, the reserve is the money.
+    // The vault is shared by every epoch of the market, so counting income that never arrived
+    // would not fail here — it would quietly pay this epoch out of another epoch's principal,
+    // and the last epoch to redeem would find the hole unmarked. Taking only what is there
+    // turns an underfunded source into an ordinary shortfall, which the buffer and then the
+    // haircut already handle in the open.
+    let collected = accrued.min(ctx.accounts.source_reserve.amount);
     let realized = ctx
         .accounts
         .epoch
         .total_deposited
-        .checked_add(accrued)
+        .checked_add(collected)
         .ok_or(LadderError::MathOverflow)?;
 
     // `total_promised` is a sum of per-rung `floor`s while `accrued` divides once over the
@@ -160,9 +176,20 @@ pub fn settle_epoch(ctx: Context<SettleEpoch>) -> Result<()> {
         buffer: ctx.accounts.buffer_vault.amount,
     })?;
 
+    let surplus = match settlement {
+        Settlement::Settled { surplus, .. } => surplus,
+        Settlement::SettledWithDeficit { .. } => 0,
+    };
+
     // Validation first, then the movement of funds — as in `ladder_deposit`. A settlement that
-    // fails must leave the buffer untouched rather than half drawn.
-    draw_from_buffer(&ctx, settlement.from_buffer())?;
+    // fails must leave every balance untouched rather than half moved. After these three the
+    // vault holds exactly `paid` for this epoch on top of what other epochs brought, which is
+    // what lets `redeem_rung` pay out of it without reaching into anyone else's principal.
+    let accounts = &ctx.accounts;
+    move_as_market(accounts, &accounts.source_reserve, &accounts.vault, collected)?;
+    move_as_market(accounts, &accounts.buffer_vault, &accounts.vault, settlement.from_buffer())?;
+    // FR-011b: the surplus is the protocol's margin for carrying the rate risk.
+    move_as_market(accounts, &accounts.vault, &accounts.buffer_vault, surplus)?;
 
     let epoch = &mut ctx.accounts.epoch;
     epoch.status = match settlement {
@@ -176,7 +203,8 @@ pub fn settle_epoch(ctx: Context<SettleEpoch>) -> Result<()> {
         epoch: epoch.key(),
         maturity_ts: epoch.maturity_ts,
         // Neither of these survives in the account, and without them a deficit cannot be told
-        // apart from a promise that was too large in the first place.
+        // apart from a promise that was too large in the first place — nor an underfunded
+        // reserve from a source that simply paid less.
         accrued,
         realized,
         promised: epoch.total_promised,
@@ -188,29 +216,28 @@ pub fn settle_epoch(ctx: Context<SettleEpoch>) -> Result<()> {
     Ok(())
 }
 
-/// The buffer's contribution, moved rather than merely recorded.
-///
-/// The protocol signs for its own vaults as the market PDA. A surplus does **not** travel the
-/// other way, and the asymmetry is real rather than an oversight: under the deterministic
-/// source the accrued income has never left the vault as tokens, so there is nothing to send
-/// to the buffer yet. It is recorded in the epoch's status and becomes an actual transfer with
-/// the Kamino adapter (T046), which withdraws real funds — see `docs/SPEC.md`, FR-011b.
-fn draw_from_buffer(ctx: &Context<SettleEpoch>, amount: u64) -> Result<()> {
+/// One transfer between two of the market's own token accounts, signed by the market PDA.
+fn move_as_market<'info>(
+    accounts: &SettleEpoch<'info>,
+    from: &Account<'info, TokenAccount>,
+    to: &Account<'info, TokenAccount>,
+    amount: u64,
+) -> Result<()> {
     if amount == 0 {
         return Ok(());
     }
 
-    let market = &ctx.accounts.market;
+    let market = &accounts.market;
     let asset_mint = market.asset_mint;
     let source_seed = market.source.seed();
     let seeds: &[&[u8]] = &[b"market", asset_mint.as_ref(), &source_seed, &[market.bump]];
 
     anchor_spl::token::transfer(
         CpiContext::new_with_signer(
-            ctx.accounts.token_program.to_account_info(),
+            accounts.token_program.to_account_info(),
             Transfer {
-                from: ctx.accounts.buffer_vault.to_account_info(),
-                to: ctx.accounts.vault.to_account_info(),
+                from: from.to_account_info(),
+                to: to.to_account_info(),
                 authority: market.to_account_info(),
             },
             &[seeds],

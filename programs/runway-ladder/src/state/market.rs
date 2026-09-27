@@ -92,6 +92,22 @@ pub struct InitMarket<'info> {
     )]
     pub buffer_vault: Account<'info, TokenAccount>,
 
+    /// Where the deterministic source's income physically comes from. Whoever runs the stand
+    /// funds it with a plain token transfer; `settle_epoch` pulls from it only what the
+    /// formula says the epoch earned, and only as much as is actually there.
+    ///
+    /// Not a field on `Market`: its address follows from the seeds, and the account belongs
+    /// to the deterministic adapter rather than to the ladder core.
+    #[account(
+        init,
+        payer = authority,
+        token::mint = asset_mint,
+        token::authority = market,
+        seeds = [b"reserve", market.key().as_ref()],
+        bump,
+    )]
+    pub source_reserve: Account<'info, TokenAccount>,
+
     pub token_program: Program<'info, Token>,
     pub system_program: Program<'info, System>,
 }

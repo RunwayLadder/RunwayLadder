@@ -147,6 +147,16 @@ impl Deposits {
     }
 }
 
+/// What the market's three token accounts hold. Named rather than three `u64` arguments for
+/// the same reason as `Deposits`: all three are amounts of one asset, and a swapped pair would
+/// compile and quietly settle against the wrong money.
+#[derive(Clone, Copy, Default)]
+pub struct Balances {
+    pub vault: u64,
+    pub buffer: u64,
+    pub reserve: u64,
+}
+
 pub struct Env {
     pub mollusk: Mollusk,
     pub authority: Pubkey,
@@ -154,6 +164,7 @@ pub struct Env {
     pub market: Pubkey,
     pub vault: Pubkey,
     pub buffer_vault: Pubkey,
+    pub source_reserve: Pubkey,
     pub source: YieldSource,
     /// The market's minimum rung size (FR-006). Tests that do not care about it
     /// leave zero and never think about it.
@@ -178,6 +189,8 @@ impl Env {
             Pubkey::find_program_address(&[b"vault", market.as_ref()], &runway_ladder::ID);
         let (buffer_vault, _) =
             Pubkey::find_program_address(&[b"buffer", market.as_ref()], &runway_ladder::ID);
+        let (source_reserve, _) =
+            Pubkey::find_program_address(&[b"reserve", market.as_ref()], &runway_ladder::ID);
 
         let system = mollusk_svm::program::keyed_account_for_system_program();
         let accounts = vec![
@@ -186,6 +199,7 @@ impl Env {
             (key(market), Account::default()),
             (key(vault), Account::default()),
             (key(buffer_vault), Account::default()),
+            (key(source_reserve), Account::default()),
             mollusk_svm_programs_token::token::keyed_account(),
             system,
         ];
@@ -197,6 +211,7 @@ impl Env {
             market,
             vault,
             buffer_vault,
+            source_reserve,
             source,
             min_rung_amount: 0,
             accounts,
@@ -234,6 +249,7 @@ impl Env {
                 market: self.market,
                 vault: self.vault,
                 buffer_vault: self.buffer_vault,
+                source_reserve: self.source_reserve,
                 token_program: spl_token::ID,
                 system_program: anchor_lang::system_program::ID,
             }
@@ -360,12 +376,12 @@ impl Env {
         address
     }
 
-    /// Puts a ready-made market and its two funded vaults into the stand.
+    /// Puts a ready-made market and its three funded token accounts into the stand.
     ///
     /// Settlement tests cannot reach this state by running `init_market`: that instruction
-    /// creates both vaults empty, and mollusk hands the chain one set of accounts, so there is
+    /// creates all three empty, and mollusk hands the chain one set of accounts, so there is
     /// no point between the two instructions at which tokens could be added to the buffer.
-    pub fn seed_market(&mut self, fee_bps: u16, vault_amount: u64, buffer_amount: u64) {
+    pub fn seed_market(&mut self, fee_bps: u16, balances: Balances) {
         let (_, bump) = Pubkey::find_program_address(
             &[b"market", self.asset_mint.as_ref(), &self.source.seed()],
             &runway_ladder::ID,
@@ -395,7 +411,7 @@ impl Env {
             },
         );
 
-        self.seed_vaults(vault_amount, buffer_amount);
+        self.seed_vaults(balances);
     }
 
     /// Adds the account, or replaces the placeholder `Env::new` left at that address.
@@ -406,10 +422,14 @@ impl Env {
         }
     }
 
-    /// Replaces the market's vaults with real SPL accounts holding a balance. `init_market`
-    /// creates them empty, and a settlement needs a buffer that already has something in it.
-    pub fn seed_vaults(&mut self, vault_amount: u64, buffer_amount: u64) {
-        for (address, amount) in [(self.vault, vault_amount), (self.buffer_vault, buffer_amount)] {
+    /// Replaces the market's token accounts with real SPL accounts holding a balance.
+    /// `init_market` creates them empty, and a settlement needs a buffer and a reserve that
+    /// already have something in them.
+    pub fn seed_vaults(&mut self, balances: Balances) {
+        let Balances { vault, buffer, reserve } = balances;
+        for (address, amount) in
+            [(self.vault, vault), (self.buffer_vault, buffer), (self.source_reserve, reserve)]
+        {
             self.put(address, token_account(&self.asset_mint, &self.market, amount));
         }
     }
@@ -422,6 +442,7 @@ impl Env {
                 epoch: self.epoch(maturity_ts),
                 vault: self.vault,
                 buffer_vault: self.buffer_vault,
+                source_reserve: self.source_reserve,
                 token_program: spl_token::ID,
             }
             .to_account_metas(None),

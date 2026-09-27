@@ -23,7 +23,13 @@ import {
   PROGRAM_ID,
 } from './accounts.js'
 import idl from './idl/runway_ladder.json' with { type: 'json' }
-import { bufferVaultAddress, epochAddress, marketAddress, vaultAddress } from './pda.js'
+import {
+  bufferVaultAddress,
+  epochAddress,
+  marketAddress,
+  sourceReserveAddress,
+  vaultAddress,
+} from './pda.js'
 
 const coder = new BorshInstructionCoder(idl as Idl)
 
@@ -144,6 +150,7 @@ export function buildInitMarket(params: InitMarketParams): TransactionInstructio
       { pubkey: market, isSigner: false, isWritable: true },
       { pubkey: vaultAddress(programId, market), isSigner: false, isWritable: true },
       { pubkey: bufferVaultAddress(programId, market), isSigner: false, isWritable: true },
+      { pubkey: sourceReserveAddress(programId, market), isSigner: false, isWritable: true },
       { pubkey: utils.token.TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
       { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
     ],

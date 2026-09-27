@@ -43,6 +43,9 @@ fn sdk_addresses_match_the_program_seeds() {
     let (buffer, _) = Pubkey::find_program_address(&[b"buffer", market.as_ref()], &program_id);
     assert_eq!(buffer, pubkey(&f["buffer_vault"]), "buffer");
 
+    let (reserve, _) = Pubkey::find_program_address(&[b"reserve", market.as_ref()], &program_id);
+    assert_eq!(reserve, pubkey(&f["source_reserve"]), "source reserve");
+
     for case in f["epochs"].as_array().expect("epochs") {
         let maturity_ts = case["maturity_ts"].as_i64().expect("maturity_ts");
         let (epoch, _) = Pubkey::find_program_address(

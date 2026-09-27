@@ -9,6 +9,7 @@ import {
   bufferVaultAddress,
   epochAddress,
   marketAddress,
+  sourceReserveAddress,
   vaultAddress,
 } from '../src/pda.js'
 
@@ -18,6 +19,7 @@ type Fixture = {
   market: string
   vault: string
   buffer_vault: string
+  source_reserve: string
   epochs: { maturity_ts: number; address: string }[]
 }
 
@@ -32,10 +34,11 @@ describe('addresses', () => {
     expect(PROGRAM_ID.toBase58()).toBe(fixture.program_id)
   })
 
-  it('derives the market, its vault and its buffer', () => {
+  it('derives the market, its vault, its buffer and its source reserve', () => {
     expect(market.toBase58()).toBe(fixture.market)
     expect(vaultAddress(PROGRAM_ID, market).toBase58()).toBe(fixture.vault)
     expect(bufferVaultAddress(PROGRAM_ID, market).toBase58()).toBe(fixture.buffer_vault)
+    expect(sourceReserveAddress(PROGRAM_ID, market).toBase58()).toBe(fixture.source_reserve)
   })
 
   it.each(fixture.epochs)('derives the epoch maturing at $maturity_ts', (c) => {

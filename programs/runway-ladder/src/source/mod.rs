@@ -8,10 +8,14 @@ pub mod deterministic;
 ///
 /// A deliberate narrowing of the original intent: for now the boundary holds **only
 /// `accrued`**, without `deposit` and `withdraw`. The reason: with the deterministic source
-/// funds go nowhere, they stay in the market vault, so both operations
+/// the principal goes nowhere, it stays in the market vault, so both operations
 /// would be empty functions with an invented set of accounts. Their shape cannot be
 /// verified while there is no second implementation under the boundary; they will arrive
 /// together with the Kamino adapter (T046), which really moves funds through CPI.
+///
+/// The income is the one thing that does move: `accrued` is what the source **owes**, and
+/// `settle_epoch` collects it as tokens from the market's source reserve, never more than the
+/// reserve holds. A formula alone would let an epoch count money no account contains.
 ///
 /// An interface designed for a single implementation is a guess, not an abstraction.
 ///

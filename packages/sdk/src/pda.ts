@@ -9,6 +9,7 @@ import { PublicKey } from '@solana/web3.js'
 const MARKET = Buffer.from('market')
 const VAULT = Buffer.from('vault')
 const BUFFER = Buffer.from('buffer')
+const RESERVE = Buffer.from('reserve')
 const EPOCH = Buffer.from('epoch')
 const LADDER = Buffer.from('ladder')
 const RUNG = Buffer.from('rung')
@@ -35,6 +36,14 @@ export function vaultAddress(programId: PublicKey, market: PublicKey): PublicKey
 
 export function bufferVaultAddress(programId: PublicKey, market: PublicKey): PublicKey {
   return PublicKey.findProgramAddressSync([BUFFER, market.toBuffer()], programId)[0]
+}
+
+/**
+ * Where the deterministic source's income sits as tokens. Whoever runs the stand funds it with
+ * a plain transfer; settlement never takes more from it than it holds.
+ */
+export function sourceReserveAddress(programId: PublicKey, market: PublicKey): PublicKey {
+  return PublicKey.findProgramAddressSync([RESERVE, market.toBuffer()], programId)[0]
 }
 
 /**

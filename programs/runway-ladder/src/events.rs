@@ -52,9 +52,10 @@ pub struct RungIssued {
 pub struct EpochSettled {
     pub epoch: Pubkey,
     pub maturity_ts: i64,
-    /// What the source produced over the epoch's `deposit_seconds`.
+    /// What the source owed over the epoch's `deposit_seconds`, by its formula.
     pub accrued: u64,
-    /// Principal plus accrued: what the epoch actually had before the buffer was asked.
+    /// Principal plus what the source actually delivered: what the epoch had before the buffer
+    /// was asked. Below `principal + accrued` exactly when the source reserve ran short.
     pub realized: u64,
     pub promised: u64,
     /// Equals `promised` unless the buffer ran out first.

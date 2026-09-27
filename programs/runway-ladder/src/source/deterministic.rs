@@ -3,8 +3,9 @@ use anchor_lang::prelude::*;
 use crate::errors::LadderError;
 use crate::math::{BPS_DENOMINATOR, SECONDS_PER_YEAR};
 
-/// A source with a fixed rate: funds stay in the market vault, and the yield
-/// is accrued by formula. Not for production but for two things without which
+/// A source with a fixed rate: the principal stays in the market vault, the yield
+/// is accrued by formula and paid out of the market's source reserve, which whoever runs the
+/// stand funds. Not for production but for two things without which
 /// the project cannot be shown: reproducible runs and devnet, where third-party protocols
 /// do not exist at all.
 ///

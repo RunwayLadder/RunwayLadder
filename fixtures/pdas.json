@@ -6,6 +6,7 @@
   "market": "77B3e5ybjnHjqPXEYgDp2eFHN3RAMGywUM1QWkspD3dH",
   "vault": "GYeGarzrisEvJn8iyscCBqHgQp8UdgXC3CASBtZ3qnGk",
   "buffer_vault": "9RUUDhhbSmBCEs3cLpQEhN3tMQKsAmGohRHnT4Fkd1Dn",
+  "source_reserve": "1sU6mRu4BMyU77RTMcYAfRFLcnmQytnnNsaWDvoud9B",
   "epochs": [
     {
       "maturity_ts": 1800000000,

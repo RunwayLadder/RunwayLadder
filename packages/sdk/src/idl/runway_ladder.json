@@ -171,6 +171,38 @@
           }
         },
         {
+          "name": "source_reserve",
+          "docs": [
+            "Where the deterministic source's income physically comes from. Whoever runs the stand",
+            "funds it with a plain token transfer; `settle_epoch` pulls from it only what the",
+            "formula says the epoch earned, and only as much as is actually there.",
+            "",
+            "Not a field on `Market`: its address follows from the seeds, and the account belongs",
+            "to the deterministic adapter rather than to the ladder core."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  101,
+                  115,
+                  101,
+                  114,
+                  118,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market"
+              }
+            ]
+          }
+        },
+        {
           "name": "token_program",
           "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
         },
@@ -391,7 +423,8 @@
         {
           "name": "vault",
           "docs": [
-            "Where the epoch's principal sits, and where the buffer's contribution lands."
+            "Where the epoch's principal sits, and where the source's income and the buffer's",
+            "contribution land."
           ],
           "writable": true
         },
@@ -403,6 +436,35 @@
             "here is what stops a second epoch from settling against money this one already used."
           ],
           "writable": true
+        },
+        {
+          "name": "source_reserve",
+          "docs": [
+            "The deterministic source's income, held as tokens. Checked by its seeds and not merely",
+            "by its owner: the vault and the buffer are owned by the market too, and passing the",
+            "vault here would count the epoch's own principal a second time as income."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  101,
+                  115,
+                  101,
+                  114,
+                  118,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market"
+              }
+            ]
+          }
         },
         {
           "name": "token_program",
@@ -762,14 +824,15 @@
           {
             "name": "accrued",
             "docs": [
-              "What the source produced over the epoch's `deposit_seconds`."
+              "What the source owed over the epoch's `deposit_seconds`, by its formula."
             ],
             "type": "u64"
           },
           {
             "name": "realized",
             "docs": [
-              "Principal plus accrued: what the epoch actually had before the buffer was asked."
+              "Principal plus what the source actually delivered: what the epoch had before the buffer",
+              "was asked. Below `principal + accrued` exactly when the source reserve ran short."
             ],
             "type": "u64"
           },

@@ -18,6 +18,7 @@ import {
   bufferVaultAddress,
   epochAddress,
   marketAddress as marketPda,
+  sourceReserveAddress,
   vaultAddress,
 } from '../src/pda.js'
 
@@ -141,9 +142,9 @@ describe('buildInitMarket', () => {
     minRungAmount: 10_000_000n,
   })
 
-  it('derives the market and both vaults instead of taking them on trust', () => {
-    // The vault and buffer addresses are not parameters: supplied from outside they would be
-    // the same thing as someone else's account in a transfer.
+  it('derives the market and its three token accounts instead of taking them on trust', () => {
+    // The vault, buffer and reserve addresses are not parameters: supplied from outside they
+    // would be the same thing as someone else's account in a transfer.
     const market = marketPda(PROGRAM_ID, assetMint, 'deterministic')
 
     expect(instruction.keys[2]?.pubkey.toBase58()).toBe(market.toBase58())
@@ -151,6 +152,16 @@ describe('buildInitMarket', () => {
     expect(instruction.keys[4]?.pubkey.toBase58()).toBe(
       bufferVaultAddress(PROGRAM_ID, market).toBase58(),
     )
+    expect(instruction.keys[5]?.pubkey.toBase58()).toBe(
+      sourceReserveAddress(PROGRAM_ID, market).toBase58(),
+    )
+  })
+
+  it('passes exactly the accounts the IDL lists, no more and no fewer', () => {
+    // Positions are checked above; this is what notices an account added to the program and
+    // forgotten here, which the program would report as a shifted, unrelated constraint.
+    const accounts = (idl as Idl).instructions.find((i) => i.name === 'init_market')?.accounts
+    expect(instruction.keys).toHaveLength(accounts?.length ?? -1)
   })
 
   it('encodes the arguments the program will read back', () => {
