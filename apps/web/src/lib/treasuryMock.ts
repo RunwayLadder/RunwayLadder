@@ -188,7 +188,7 @@ export const rungTwoWithDeficit: Rung = {
     settled: '250,047.90',
     shortfall: '1,458.73',
     payoutRatio: '99.42%',
-    note: 'Base yield fell short. Yield-holder income and the protocol buffer were applied first; the remainder was settled pro rata across the epoch.',
+    note: 'Base yield fell short. The protocol buffer covered what it could; the remainder was settled pro rata across the epoch.',
   },
 }
 

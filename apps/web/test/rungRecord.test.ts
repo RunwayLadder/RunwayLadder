@@ -144,6 +144,10 @@ describe('toRungRecords', () => {
       shortfall: '310.93…',
       payoutRatio: '99.88%',
     })
+    // The order on screen is the order the program runs (FR-011): the buffer, then the haircut.
+    // There is no yield-holder step, and the note must not claim one.
+    expect(record?.settlement?.note).toMatch(/protocol buffer/)
+    expect(record?.settlement?.note).not.toMatch(/yield-holder/i)
   })
 
   it('a redemption in full has no deficit', () => {

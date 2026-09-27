@@ -101,7 +101,7 @@ function settlementOf(status: RungStatus, promised: bigint, decimals: number) {
       payoutRatio: ratio(settled, owed),
       note:
         status.kind === 'redeemedWithDeficit'
-          ? 'Base yield fell short. Yield-holder income and the protocol buffer were applied first; the remainder was settled pro rata across the epoch.'
+          ? 'Base yield fell short. The protocol buffer covered what it could; the remainder was settled pro rata across the epoch.'
           : 'Settled in full at the promised amount.',
     },
   }
