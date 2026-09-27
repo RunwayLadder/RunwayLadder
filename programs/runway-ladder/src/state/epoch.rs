@@ -1,11 +1,11 @@
 use anchor_lang::prelude::*;
-use anchor_spl::token::{Token, TokenAccount, Transfer};
+use anchor_spl::token::{Token, TokenAccount};
 
 use crate::errors::LadderError;
 use crate::events::EpochSettled;
-use crate::math::{waterfall, EpochMaturity, Settlement};
+use crate::math::{waterfall, EpochMaturity, PayoutRatio, Settlement};
 use crate::source;
-use crate::state::Market;
+use crate::state::{transfer_as_market, Market};
 
 /// What happened to the epoch as a whole. A union rather than a status flag beside a
 /// `payout_ratio` field: the pair would make "settled below the promise, unmarked"
@@ -59,9 +59,27 @@ pub struct Epoch {
     ///
     /// `u128` because the product alone reaches `2^64` for large amounts over long spans.
     pub deposit_seconds: u128,
+    /// What its rungs have taken out of the vault so far. Never above `paid`: the vault is
+    /// shared by every epoch of the market, so a redemption past it would not fail — it would
+    /// pay out of another epoch's principal. The difference that remains once every rung is
+    /// redeemed is the rounding dust, which stays with the treasury side of the vault.
+    pub redeemed: u64,
     /// `Active` until the crank settles the epoch, then the payout ratio in union form.
     pub status: EpochStatus,
     pub bump: u8,
+}
+
+impl Epoch {
+    /// The settlement as `payout` consumes it. `total_promised` is the denominator in both
+    /// variants; the status only contributes `paid`, which is all it keeps.
+    pub fn payout_ratio(&self) -> Result<PayoutRatio> {
+        let paid = match self.status {
+            EpochStatus::Active => return err!(LadderError::EpochNotSettled),
+            EpochStatus::Settled { paid } | EpochStatus::SettledWithDeficit { paid, .. } => paid,
+        };
+
+        Ok(PayoutRatio { paid, promised: self.total_promised })
+    }
 }
 
 #[derive(Accounts)]
@@ -98,6 +116,7 @@ pub fn create_epoch(ctx: Context<CreateEpoch>, maturity_ts: i64, rate_bps: u16) 
     epoch.total_deposited = 0;
     epoch.total_promised = 0;
     epoch.deposit_seconds = 0;
+    epoch.redeemed = 0;
     epoch.status = EpochStatus::Active;
     epoch.bump = ctx.bumps.epoch;
 
@@ -185,11 +204,11 @@ pub fn settle_epoch(ctx: Context<SettleEpoch>) -> Result<()> {
     // fails must leave every balance untouched rather than half moved. After these three the
     // vault holds exactly `paid` for this epoch on top of what other epochs brought, which is
     // what lets `redeem_rung` pay out of it without reaching into anyone else's principal.
-    let accounts = &ctx.accounts;
-    move_as_market(accounts, &accounts.source_reserve, &accounts.vault, collected)?;
-    move_as_market(accounts, &accounts.buffer_vault, &accounts.vault, settlement.from_buffer())?;
+    let a = &ctx.accounts;
+    transfer_as_market(&a.market, &a.token_program, &a.source_reserve, &a.vault, collected)?;
+    transfer_as_market(&a.market, &a.token_program, &a.buffer_vault, &a.vault, settlement.from_buffer())?;
     // FR-011b: the surplus is the protocol's margin for carrying the rate risk.
-    move_as_market(accounts, &accounts.vault, &accounts.buffer_vault, surplus)?;
+    transfer_as_market(&a.market, &a.token_program, &a.vault, &a.buffer_vault, surplus)?;
 
     let epoch = &mut ctx.accounts.epoch;
     epoch.status = match settlement {
@@ -214,34 +233,4 @@ pub fn settle_epoch(ctx: Context<SettleEpoch>) -> Result<()> {
     });
 
     Ok(())
-}
-
-/// One transfer between two of the market's own token accounts, signed by the market PDA.
-fn move_as_market<'info>(
-    accounts: &SettleEpoch<'info>,
-    from: &Account<'info, TokenAccount>,
-    to: &Account<'info, TokenAccount>,
-    amount: u64,
-) -> Result<()> {
-    if amount == 0 {
-        return Ok(());
-    }
-
-    let market = &accounts.market;
-    let asset_mint = market.asset_mint;
-    let source_seed = market.source.seed();
-    let seeds: &[&[u8]] = &[b"market", asset_mint.as_ref(), &source_seed, &[market.bump]];
-
-    anchor_spl::token::transfer(
-        CpiContext::new_with_signer(
-            accounts.token_program.to_account_info(),
-            Transfer {
-                from: from.to_account_info(),
-                to: to.to_account_info(),
-                authority: market.to_account_info(),
-            },
-            &[seeds],
-        ),
-        amount,
-    )
 }

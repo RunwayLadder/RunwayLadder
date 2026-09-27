@@ -47,6 +47,7 @@ type Fixture = {
     total_deposited: number
     total_promised: number
     deposit_seconds: string
+    redeemed: string
     status: string
     bump: number
   }
@@ -54,6 +55,7 @@ type Fixture = {
     base64: string
     total_promised: number
     deposit_seconds: string
+    redeemed: string
     status: string
     paid: string
     deficit: string
@@ -112,6 +114,7 @@ describe('decodeEpoch', () => {
 
   it('reads deposit_seconds off the reference account', () => {
     expect(epoch.depositSeconds).toBe(BigInt(fixture.epoch.deposit_seconds))
+    expect(epoch.redeemed).toBe(BigInt(fixture.epoch.redeemed))
   })
 
   // The reference value — a thousand USDC over ninety days — still fits in a double, so on its
@@ -147,6 +150,16 @@ describe('decodeEpoch', () => {
 
     if (settled.status.kind !== 'settledWithDeficit') throw new Error('unreachable')
     expect(settled.status.paid + settled.status.deficit).toBe(settled.totalPromised)
+  })
+
+  // Zero decodes the same from any offset, so the redemption counter is checked on the fixture
+  // where it is not zero: a field read one slot off would return a neighbour, not this number.
+  it('reads how much of a settled epoch has been redeemed', () => {
+    const settled = decodeEpoch(Buffer.from(fixture.epoch_settled_with_deficit.base64, 'base64'))
+
+    expect(settled.redeemed).toBe(BigInt(fixture.epoch_settled_with_deficit.redeemed))
+    if (settled.status.kind !== 'settledWithDeficit') throw new Error('unreachable')
+    expect(settled.redeemed).toBeLessThanOrEqual(settled.status.paid)
   })
 })
 

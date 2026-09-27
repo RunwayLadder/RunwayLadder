@@ -395,6 +395,95 @@
       ]
     },
     {
+      "name": "redeem_rung",
+      "docs": [
+        "The owner signs; the funds go only to an account the owner controls (FR-012)."
+      ],
+      "discriminator": [
+        98,
+        105,
+        211,
+        137,
+        107,
+        57,
+        89,
+        165
+      ],
+      "accounts": [
+        {
+          "name": "owner",
+          "signer": true,
+          "relations": [
+            "ladder"
+          ]
+        },
+        {
+          "name": "market",
+          "relations": [
+            "ladder",
+            "epoch"
+          ]
+        },
+        {
+          "name": "ladder"
+        },
+        {
+          "name": "epoch",
+          "docs": [
+            "Mutable for `redeemed`: the running total that keeps the epoch's redemptions inside what",
+            "it settled for."
+          ],
+          "writable": true
+        },
+        {
+          "name": "rung",
+          "docs": [
+            "The seeds bind the rung to this ladder and this epoch: a rung of another ladder, or of",
+            "another epoch of the same ladder, has a different address."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  117,
+                  110,
+                  103
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "ladder"
+              },
+              {
+                "kind": "account",
+                "path": "epoch"
+              }
+            ]
+          }
+        },
+        {
+          "name": "vault",
+          "writable": true
+        },
+        {
+          "name": "destination",
+          "docs": [
+            "Where the funds go. It must belong to the ladder owner — otherwise the owner's signature",
+            "would send the treasury's money to someone else's account."
+          ],
+          "writable": true
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "settle_epoch",
       "docs": [
         "Permissionless: no signer, no destination, no amount (FR-011)."
@@ -515,6 +604,7 @@
       ]
     },
     {
+      "name": "Rung",
       "discriminator": [
         179,
         121,
@@ -524,8 +614,7 @@
         168,
         238,
         7
-      ],
-      "name": "Rung"
+      ]
     }
   ],
   "events": [
@@ -579,6 +668,19 @@
         8,
         244,
         0
+      ]
+    },
+    {
+      "name": "RungRedeemed",
+      "discriminator": [
+        125,
+        181,
+        29,
+        11,
+        59,
+        6,
+        9,
+        229
       ]
     }
   ],
@@ -672,6 +774,11 @@
       "code": 6017,
       "name": "RungExceedsEpochPromise",
       "msg": "Rung promise is larger than its epoch's total — the epoch's accounting is inconsistent"
+    },
+    {
+      "code": 6018,
+      "name": "EpochOverpaid",
+      "msg": "Epoch would pay out more than it settled for — the epoch's accounting is inconsistent"
     }
   ],
   "types": [
@@ -780,6 +887,16 @@
               "`u128` because the product alone reaches `2^64` for large amounts over long spans."
             ],
             "type": "u128"
+          },
+          {
+            "name": "redeemed",
+            "docs": [
+              "What its rungs have taken out of the vault so far. Never above `paid`: the vault is",
+              "shared by every epoch of the market, so a redemption past it would not fail — it would",
+              "pay out of another epoch's principal. The difference that remains once every rung is",
+              "redeemed is the rounding dust, which stays with the treasury side of the vault."
+            ],
+            "type": "u64"
           },
           {
             "name": "status",
@@ -1132,6 +1249,7 @@
       }
     },
     {
+      "name": "Rung",
       "docs": [
         "A rung: one date, one fixed promise.",
         "",
@@ -1139,8 +1257,8 @@
         "exist — and this is not a flag check but the absence of a path: to change the terms",
         "one would have to create another rung in another epoch."
       ],
-      "name": "Rung",
       "type": {
+        "kind": "struct",
         "fields": [
           {
             "name": "ladder",
@@ -1151,18 +1269,18 @@
             "type": "pubkey"
           },
           {
+            "name": "deposited",
             "docs": [
               "How much actually went to work — the amount after the protocol fee."
             ],
-            "name": "deposited",
             "type": "u64"
           },
           {
+            "name": "promised",
             "docs": [
               "How much the treasury receives on the maturity date. The same number the treasurer",
               "saw in the deposit preview (FR-007)."
             ],
-            "name": "promised",
             "type": "u64"
           },
           {
@@ -1181,8 +1299,7 @@
             "name": "bump",
             "type": "u8"
           }
-        ],
-        "kind": "struct"
+        ]
       }
     },
     {
@@ -1231,6 +1348,53 @@
       }
     },
     {
+      "name": "RungRedeemed",
+      "docs": [
+        "One rung redeemed (FR-015: when, how much, and where the funds went).",
+        "",
+        "`with_deficit` is explicit rather than left to `amount < promised`: under a deficit a rung",
+        "promised nothing receives nothing, which compares equal and would read as \"paid in full\"."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "ladder",
+            "type": "pubkey"
+          },
+          {
+            "name": "rung",
+            "type": "pubkey"
+          },
+          {
+            "name": "epoch",
+            "type": "pubkey"
+          },
+          {
+            "name": "destination",
+            "type": "pubkey"
+          },
+          {
+            "name": "promised",
+            "type": "u64"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "with_deficit",
+            "type": "bool"
+          },
+          {
+            "name": "redeemed_at",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "RungStatus",
       "docs": [
         "What happened to the rung. A union rather than a sum of boolean flags: the variant",
         "\"redeemed for less than promised, unmarked\" does not exist in the type, so a deficit cannot",
@@ -1240,7 +1404,6 @@
         "departure from the table in `docs/PLAN.md`: a `settled_amount` field next to the status would",
         "give exactly the representability the invariant forbids."
       ],
-      "name": "RungStatus",
       "type": {
         "kind": "enum",
         "variants": [
@@ -1248,15 +1411,16 @@
             "name": "Active"
           },
           {
+            "name": "Redeemed",
             "fields": [
               {
                 "name": "amount",
                 "type": "u64"
               }
-            ],
-            "name": "Redeemed"
+            ]
           },
           {
+            "name": "RedeemedWithDeficit",
             "fields": [
               {
                 "name": "amount",
@@ -1266,17 +1430,16 @@
                 "name": "promised",
                 "type": "u64"
               }
-            ],
-            "name": "RedeemedWithDeficit"
+            ]
           },
           {
+            "name": "Exited",
             "fields": [
               {
                 "name": "amount",
                 "type": "u64"
               }
-            ],
-            "name": "Exited"
+            ]
           }
         ]
       }

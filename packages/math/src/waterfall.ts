@@ -101,6 +101,18 @@ export function waterfall(epoch: EpochMaturity): Settlement {
 }
 
 /**
+ * The epoch's payout ratio in the only form `payout()` needs: what the epoch pays out of what
+ * it promised, kept as its two integers. Narrower than `Settlement` on purpose: on chain the
+ * settlement survives only as `Epoch.status`, which keeps `paid` but not `surplus` or
+ * `fromBuffer`, and rebuilding a full `Settlement` for a redemption would mean inventing them.
+ * A `Settlement` is itself a `PayoutRatio`, so the simulation passes it as is.
+ */
+export type PayoutRatio = {
+  readonly paid: bigint
+  readonly promised: bigint
+}
+
+/**
  * What one rung receives out of the epoch's settlement: its promise scaled by
  * `paid / promised`. One ratio for the whole epoch, so a rung is paid the same whether it
  * is redeemed first or last — a per-rung haircut would favour whoever came first.
@@ -109,17 +121,23 @@ export function waterfall(epoch: EpochMaturity): Settlement {
  * vault rather than creating a unit that is not there. Under a deficit every rung with a
  * non-zero promise receives strictly less than it — the deficit is not lost in rounding.
  */
-export function payout(rungPromised: bigint, settlement: Settlement): bigint {
+export function payout(rungPromised: bigint, ratio: PayoutRatio): bigint {
+  const { paid, promised } = ratio
+
   assertAmount('rungPromised', rungPromised)
-  if (rungPromised > settlement.promised) {
-    throw new RangeError(
-      `rungPromised ${rungPromised} exceeds the epoch's promised ${settlement.promised}`,
-    )
+  assertAmount('paid', paid)
+  // A ratio above one would pay every rung more than its promise — the direction of error
+  // this product cannot survive. Mirrors `EpochOverpaid` on chain.
+  if (paid > promised) {
+    throw new RangeError(`paid ${paid} exceeds the epoch's promised ${promised}`)
+  }
+  if (rungPromised > promised) {
+    throw new RangeError(`rungPromised ${rungPromised} exceeds the epoch's promised ${promised}`)
   }
 
   // Not just a shortcut: an empty epoch has `promised = 0`, and dividing by it would be
   // the only way this function could fail. At par there is nothing to scale.
-  if (settlement.status === 'settled') return rungPromised
+  if (paid === promised) return rungPromised
 
-  return (rungPromised * settlement.paid) / settlement.promised
+  return (rungPromised * paid) / promised
 }

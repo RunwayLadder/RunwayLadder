@@ -91,6 +91,8 @@ const epochSchema = z
     total_promised: u64,
     /** `Σ(principal × seconds)`, so a u128 — `u64` here only names the BN conversion. */
     deposit_seconds: u64,
+    /** What the epoch's rungs have taken out of the vault so far — never above `paid`. */
+    redeemed: u64,
     status: epochStatusSchema,
     bump,
   })
@@ -103,6 +105,7 @@ const epochSchema = z
     totalDeposited: e.total_deposited,
     totalPromised: e.total_promised,
     depositSeconds: e.deposit_seconds,
+    redeemed: e.redeemed,
     status: e.status,
     bump: e.bump,
   }))

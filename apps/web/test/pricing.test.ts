@@ -20,6 +20,7 @@ const epoch = (over: Partial<Epoch> = {}): Epoch => ({
   totalDeposited: 0n,
   totalPromised: 0n,
   depositSeconds: 0n,
+  redeemed: 0n,
   status: { kind: 'active' },
   bump: 255,
   ...over,

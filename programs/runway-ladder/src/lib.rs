@@ -45,4 +45,9 @@ pub mod runway_ladder {
     pub fn settle_epoch(ctx: Context<SettleEpoch>) -> Result<()> {
         state::settle_epoch(ctx)
     }
+
+    /// The owner signs; the funds go only to an account the owner controls (FR-012).
+    pub fn redeem_rung(ctx: Context<RedeemRung>) -> Result<()> {
+        state::redeem_rung(ctx)
+    }
 }

@@ -2,9 +2,9 @@ use anchor_lang::prelude::*;
 use anchor_spl::token::{Token, TokenAccount, Transfer};
 
 use crate::errors::LadderError;
-use crate::events::{LadderFunded, RungIssued};
-use crate::math::{fee, promise, split, Distribution};
-use crate::state::{Epoch, Ladder, Market};
+use crate::events::{LadderFunded, RungIssued, RungRedeemed};
+use crate::math::{fee, payout, promise, split, Distribution};
+use crate::state::{transfer_as_market, Epoch, EpochStatus, Ladder, Market};
 
 /// What happened to the rung. A union rather than a sum of boolean flags: the variant
 /// "redeemed for less than promised, unmarked" does not exist in the type, so a deficit cannot
@@ -243,4 +243,101 @@ fn transfer_from_owner<'info>(
         ),
         amount,
     )
+}
+
+/// Redeeming one rung after its epoch has settled (FR-012): the promise at par, or the epoch's
+/// ratio applied to it with the deficit marked in the rung's status — never a smaller number
+/// under the same label (FR-011a).
+///
+/// **The owner signs, and the owner chooses the account.** The destination is any token
+/// account of the market's asset whose authority is the ladder owner — the mirror of `source`
+/// in `ladder_deposit`. A multisig safe as the owner redeems the same way, since the check reads
+/// who the owner is, not what kind of account it is.
+///
+/// **The roll policy does not lock the owner out** (decision 2026-09-27). `RollPolicy::Roll`
+/// is a permission for the permissionless crank, not a restriction on the owner; whichever of
+/// the two comes first consumes the rung, once, and the other finds it no longer active.
+#[derive(Accounts)]
+pub struct RedeemRung<'info> {
+    pub owner: Signer<'info>,
+
+    pub market: Account<'info, Market>,
+
+    #[account(has_one = owner @ LadderError::NotLadderOwner, has_one = market)]
+    pub ladder: Account<'info, Ladder>,
+
+    /// Mutable for `redeemed`: the running total that keeps the epoch's redemptions inside what
+    /// it settled for.
+    #[account(mut, has_one = market)]
+    pub epoch: Account<'info, Epoch>,
+
+    /// The seeds bind the rung to this ladder and this epoch: a rung of another ladder, or of
+    /// another epoch of the same ladder, has a different address.
+    #[account(
+        mut,
+        seeds = [b"rung", ladder.key().as_ref(), epoch.key().as_ref()],
+        bump = rung.bump,
+    )]
+    pub rung: Account<'info, Rung>,
+
+    #[account(mut, address = market.vault)]
+    pub vault: Account<'info, TokenAccount>,
+
+    /// Where the funds go. It must belong to the ladder owner — otherwise the owner's signature
+    /// would send the treasury's money to someone else's account.
+    #[account(mut, token::mint = market.asset_mint, token::authority = owner)]
+    pub destination: Account<'info, TokenAccount>,
+
+    pub token_program: Program<'info, Token>,
+}
+
+pub fn redeem_rung(ctx: Context<RedeemRung>) -> Result<()> {
+    require!(
+        matches!(ctx.accounts.rung.status, RungStatus::Active),
+        LadderError::RungNotActive
+    );
+
+    // One ratio for the whole epoch, read from its status: `EpochNotSettled` until the crank
+    // has settled it, and the same numbers for every rung after that.
+    let ratio = ctx.accounts.epoch.payout_ratio()?;
+    let promised = ctx.accounts.rung.promised;
+    let amount = payout(promised, ratio)?;
+
+    // `payout` rounds down, so the rungs of one epoch cannot add up past `paid`. The check is
+    // here anyway because the vault would not stop it: it holds every epoch's money, and an
+    // excess would be paid out of someone else's principal instead of failing.
+    let redeemed = ctx
+        .accounts
+        .epoch
+        .redeemed
+        .checked_add(amount)
+        .ok_or(LadderError::MathOverflow)?;
+    require!(redeemed <= ratio.paid, LadderError::EpochOverpaid);
+
+    let with_deficit = matches!(ctx.accounts.epoch.status, EpochStatus::SettledWithDeficit { .. });
+
+    // State first, then the funds: a failed transfer rolls the whole instruction back anyway,
+    // and nothing below reads the fields written here.
+    ctx.accounts.epoch.redeemed = redeemed;
+    ctx.accounts.rung.status = if with_deficit {
+        RungStatus::RedeemedWithDeficit { amount, promised }
+    } else {
+        RungStatus::Redeemed { amount }
+    };
+
+    let a = &ctx.accounts;
+    transfer_as_market(&a.market, &a.token_program, &a.vault, &a.destination, amount)?;
+
+    emit!(RungRedeemed {
+        ladder: a.ladder.key(),
+        rung: a.rung.key(),
+        epoch: a.epoch.key(),
+        destination: a.destination.key(),
+        promised,
+        amount,
+        with_deficit,
+        redeemed_at: Clock::get()?.unix_timestamp,
+    });
+
+    Ok(())
 }

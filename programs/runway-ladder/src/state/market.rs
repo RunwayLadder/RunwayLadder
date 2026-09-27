@@ -1,5 +1,5 @@
 use anchor_lang::prelude::*;
-use anchor_spl::token::{Mint, Token, TokenAccount};
+use anchor_spl::token::{Mint, Token, TokenAccount, Transfer};
 
 use crate::errors::LadderError;
 use crate::math::BPS_DENOMINATOR;
@@ -131,4 +131,36 @@ pub fn init_market(
     market.bump = ctx.bumps.market;
 
     Ok(())
+}
+
+/// One transfer out of a token account the market owns, signed by the market PDA. Every movement
+/// of the protocol's money — settlement between its own accounts, redemption to the treasury —
+/// goes through here, so the signer seeds exist in one place.
+pub fn transfer_as_market<'info>(
+    market: &Account<'info, Market>,
+    token_program: &Program<'info, Token>,
+    from: &Account<'info, TokenAccount>,
+    to: &Account<'info, TokenAccount>,
+    amount: u64,
+) -> Result<()> {
+    if amount == 0 {
+        return Ok(());
+    }
+
+    let asset_mint = market.asset_mint;
+    let source_seed = market.source.seed();
+    let seeds: &[&[u8]] = &[b"market", asset_mint.as_ref(), &source_seed, &[market.bump]];
+
+    anchor_spl::token::transfer(
+        CpiContext::new_with_signer(
+            token_program.to_account_info(),
+            Transfer {
+                from: from.to_account_info(),
+                to: to.to_account_info(),
+                authority: market.to_account_info(),
+            },
+            &[seeds],
+        ),
+        amount,
+    )
 }

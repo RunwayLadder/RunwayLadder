@@ -28,21 +28,29 @@ describe('waterfall', () => {
 
 describe('payout', () => {
   it.each(vectors.waterfall.payout.cases)('$name', (c) => {
-    expect(payout(BigInt(c.rung_promised), settlementOf(BigInt(c.paid), BigInt(c.promised)))).toBe(
-      BigInt(c.payout),
-    )
+    const ratio = { paid: BigInt(c.paid), promised: BigInt(c.promised) }
+    expect(payout(BigInt(c.rung_promised), ratio)).toBe(BigInt(c.payout))
   })
 
   it('rejects a rung promised more than its whole epoch', () => {
-    expect(() => payout(11n, settlementOf(10n, 10n))).toThrow(RangeError)
+    expect(() => payout(11n, { paid: 10n, promised: 10n })).toThrow(RangeError)
+    expect(() => payout(11n, { paid: 9n, promised: 10n })).toThrow(RangeError)
   })
 
-  it('rejects a negative promise', () => {
-    expect(() => payout(-1n, settlementOf(10n, 10n))).toThrow(RangeError)
+  it('rejects an epoch that pays more than it promised', () => {
+    // Every rung would receive more than its promise, and together the redemptions would reach
+    // into another epoch's principal in the shared vault.
+    expect(() => payout(5n, { paid: 11n, promised: 10n })).toThrow(RangeError)
+    expect(() => payout(0n, { paid: 1n, promised: 0n })).toThrow(RangeError)
+  })
+
+  it('rejects a negative promise or payment', () => {
+    expect(() => payout(-1n, { paid: 10n, promised: 10n })).toThrow(RangeError)
+    expect(() => payout(1n, { paid: -1n, promised: 10n })).toThrow(RangeError)
   })
 
   it('pays an empty epoch nothing without dividing by zero', () => {
-    expect(payout(0n, settlementOf(0n, 0n))).toBe(0n)
+    expect(payout(0n, { paid: 0n, promised: 0n })).toBe(0n)
   })
 })
 
@@ -122,12 +130,6 @@ describe('SC-004: the waterfall over simulated trajectories', () => {
     }
   })
 })
-
-function settlementOf(paid: bigint, promised: bigint): Settlement {
-  return paid === promised
-    ? { status: 'settled', promised, paid, surplus: 0n, fromBuffer: 0n }
-    : { status: 'settledWithDeficit', promised, paid, deficit: promised - paid, fromBuffer: 0n }
-}
 
 type Run = {
   epoch: EpochMaturity

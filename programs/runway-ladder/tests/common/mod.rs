@@ -13,7 +13,7 @@ use mollusk_svm::Mollusk;
 use solana_account::Account;
 
 use runway_ladder::math::Distribution;
-use runway_ladder::state::{EpochStatus, RollPolicy, YieldSource};
+use runway_ladder::state::{EpochStatus, RollPolicy, RungStatus, YieldSource};
 
 /// Anchor 0.32 and mollusk 0.15 are built on different majors of the solana crates
 /// (`solana-instruction` 2.x vs 3.x), so their `Pubkey`s are two different types
@@ -112,6 +112,11 @@ fn token_account(mint: &Pubkey, owner: &Pubkey, amount: u64) -> Account {
     Account { lamports: FUNDED, data, owner: key(spl_token::ID), executable: false, rent_epoch: 0 }
 }
 
+/// An account owned by the program, holding already serialized state.
+fn program_account(data: Vec<u8>) -> Account {
+    Account { lamports: FUNDED, data, owner: key(runway_ladder::ID), executable: false, rent_epoch: 0 }
+}
+
 /// What an epoch has accumulated by the time it matures. A named struct rather than three
 /// `u64` arguments: `total_deposited` and `total_promised` are both amounts of the same asset
 /// and swapping them at a call site would compile and quietly settle a different epoch.
@@ -120,6 +125,8 @@ pub struct Deposits {
     pub total_promised: u64,
     pub deposit_seconds: u128,
     pub status: EpochStatus,
+    /// What the epoch's rungs have already taken out of the vault.
+    pub redeemed: u64,
 }
 
 impl Default for Deposits {
@@ -129,6 +136,7 @@ impl Default for Deposits {
             total_promised: 0,
             deposit_seconds: 0,
             status: EpochStatus::Active,
+            redeemed: 0,
         }
     }
 }
@@ -355,6 +363,7 @@ impl Env {
             total_deposited: deposits.total_deposited,
             total_promised: deposits.total_promised,
             deposit_seconds: deposits.deposit_seconds,
+            redeemed: deposits.redeemed,
             status: deposits.status,
             bump,
         };
@@ -447,6 +456,81 @@ impl Env {
             }
             .to_account_metas(None),
             data: runway_ladder::instruction::SettleEpoch {}.data(),
+        })
+    }
+
+    /// Puts a ready-made ladder into the stand. A redemption needs a rung in a settled epoch,
+    /// and a settled epoch cannot be reached by running `ladder_deposit` (see
+    /// `seed_settled_epoch`), so the ladder and its rungs are placed directly as well.
+    pub fn seed_ladder(&mut self, owner: Pubkey, seed: u64, policy: RollPolicy) -> Pubkey {
+        let (address, bump) = Pubkey::find_program_address(
+            &[b"ladder", owner.as_ref(), &seed.to_le_bytes()],
+            &runway_ladder::ID,
+        );
+
+        let ladder = runway_ladder::state::Ladder {
+            owner,
+            market: self.market,
+            seed,
+            rung_count: 0,
+            roll_policy: policy,
+            created_at: NOW,
+            bump,
+        };
+
+        let mut data = vec![0u8; 8 + runway_ladder::state::Ladder::INIT_SPACE];
+        ladder.try_serialize(&mut &mut data[..]).expect("serializes as Ladder");
+        self.put(address, program_account(data));
+        address
+    }
+
+    /// An active rung of `ladder` in `epoch`, promised `promised`.
+    pub fn seed_rung(&mut self, ladder: Pubkey, epoch: Pubkey, promised: u64) -> Pubkey {
+        let (address, bump) = Pubkey::find_program_address(
+            &[b"rung", ladder.as_ref(), epoch.as_ref()],
+            &runway_ladder::ID,
+        );
+
+        let rung = runway_ladder::state::Rung {
+            ladder,
+            epoch,
+            deposited: promised,
+            promised,
+            fee_paid: 0,
+            status: RungStatus::Active,
+            bump,
+        };
+
+        let mut data = vec![0u8; 8 + runway_ladder::state::Rung::INIT_SPACE];
+        rung.try_serialize(&mut &mut data[..]).expect("serializes as Rung");
+        self.put(address, program_account(data));
+        address
+    }
+
+    /// The signer, the ladder and the destination are given separately: otherwise "a stranger
+    /// redeems the owner's rung" and "the owner redeems into a stranger's account" cannot even
+    /// be assembled.
+    pub fn redeem_rung(
+        &self,
+        signer: Pubkey,
+        ladder: Pubkey,
+        epoch: Pubkey,
+        destination: Pubkey,
+    ) -> svm::Instruction {
+        to_svm(Instruction {
+            program_id: runway_ladder::ID,
+            accounts: runway_ladder::accounts::RedeemRung {
+                owner: signer,
+                market: self.market,
+                ladder,
+                epoch,
+                rung: self.rung(ladder, epoch),
+                vault: self.vault,
+                destination,
+                token_program: spl_token::ID,
+            }
+            .to_account_metas(None),
+            data: runway_ladder::instruction::RedeemRung {}.data(),
         })
     }
 

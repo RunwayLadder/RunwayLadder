@@ -211,6 +211,25 @@ impl Settlement {
             | Settlement::SettledWithDeficit { from_buffer, .. } => *from_buffer,
         }
     }
+
+    pub fn ratio(&self) -> PayoutRatio {
+        PayoutRatio { paid: self.paid(), promised: self.promised() }
+    }
+}
+
+/// The epoch's payout ratio in the only form [`payout`] needs: what the epoch pays out of what
+/// it promised. A fraction kept as its two integers, so no fixed-point scale has to be chosen
+/// and the treasurer can check the numbers against the vault without trusting our rounding.
+///
+/// Narrower than [`Settlement`] on purpose. On chain the settlement survives only as
+/// `Epoch.status`, which keeps `paid` but not `surplus` or `from_buffer`; rebuilding a full
+/// `Settlement` for a redemption would mean filling those with invented zeros. A struct rather
+/// than two `u64` arguments: both are amounts of one asset, and a swapped pair would compile and
+/// pay every rung `promised / paid` instead.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct PayoutRatio {
+    pub paid: u64,
+    pub promised: u64,
 }
 
 /// Covering a shortfall: the protocol buffer, then a pro-rata haircut (FR-011). The only
@@ -266,27 +285,28 @@ pub fn waterfall(epoch: EpochMaturity) -> Result<Settlement> {
 /// Rounds down, so the sum over the rungs never exceeds `paid`: rounding leaves dust in the vault
 /// rather than creating a unit that is not there. Under a deficit every rung with a non-zero
 /// promise receives strictly less than it — the deficit is not lost in rounding.
-pub fn payout(rung_promised: u64, settlement: &Settlement) -> Result<u64> {
-    require!(
-        rung_promised <= settlement.promised(),
-        LadderError::RungExceedsEpochPromise
-    );
+///
+/// Both guards are unreachable from any instruction and both point the same way: of the two ways
+/// an amount can be wrong, this product cannot survive the upward one.
+pub fn payout(rung_promised: u64, ratio: PayoutRatio) -> Result<u64> {
+    let PayoutRatio { paid, promised } = ratio;
 
-    match settlement {
-        // Not just a shortcut: an empty epoch has `promised == 0`, and dividing by it would be the
-        // only way this function could fail. At par there is nothing to scale.
-        Settlement::Settled { .. } => Ok(rung_promised),
-        // `promised` is above zero here by construction: the deficit is never zero and never
-        // exceeds `promised`, so the division below has no zero case to guard.
-        Settlement::SettledWithDeficit { promised, paid, .. } => {
-            let scaled = u128::from(rung_promised)
-                .checked_mul(u128::from(*paid))
-                .ok_or(LadderError::MathOverflow)?
-                / u128::from(*promised);
+    require!(paid <= promised, LadderError::EpochOverpaid);
+    require!(rung_promised <= promised, LadderError::RungExceedsEpochPromise);
 
-            u64::try_from(scaled).map_err(|_| LadderError::MathOverflow.into())
-        }
+    // Not just a shortcut: an empty epoch has `promised == 0`, and dividing by it would be the
+    // only way this function could fail. At par there is nothing to scale.
+    if paid == promised {
+        return Ok(rung_promised);
     }
+
+    // `promised` is above zero here: `paid < promised` and `paid` is not negative.
+    let scaled = u128::from(rung_promised)
+        .checked_mul(u128::from(paid))
+        .ok_or(LadderError::MathOverflow)?
+        / u128::from(promised);
+
+    u64::try_from(scaled).map_err(|_| LadderError::MathOverflow.into())
 }
 
 #[cfg(test)]
@@ -457,17 +477,8 @@ mod tests {
         assert!(split(1_000, &Distribution::Weighted { weights_bps: vec![] }).is_err());
     }
 
-    fn settlement_of(paid: u64, promised: u64) -> Settlement {
-        if paid == promised {
-            Settlement::Settled { promised, paid, surplus: 0, from_buffer: 0 }
-        } else {
-            Settlement::SettledWithDeficit {
-                promised,
-                paid,
-                deficit: promised - paid,
-                from_buffer: 0,
-            }
-        }
+    fn ratio(paid: u64, promised: u64) -> PayoutRatio {
+        PayoutRatio { paid, promised }
     }
 
     /// The grid the sweeps below run over: every combination of an epoch's three sums. The
@@ -530,10 +541,11 @@ mod tests {
     fn payout_matches_the_shared_vectors() {
         for case in vectors()["waterfall"]["payout"]["cases"].as_array().unwrap() {
             let name = case["name"].as_str().unwrap();
-            let settlement = settlement_of(u64_field(case, "paid"), u64_field(case, "promised"));
+            let ratio =
+                PayoutRatio { paid: u64_field(case, "paid"), promised: u64_field(case, "promised") };
 
-            let got = payout(u64_field(case, "rung_promised"), &settlement)
-                .unwrap_or_else(|_| panic!("{name}"));
+            let got =
+                payout(u64_field(case, "rung_promised"), ratio).unwrap_or_else(|_| panic!("{name}"));
 
             assert_eq!(got, u64_field(case, "payout"), "{name}");
         }
@@ -626,7 +638,7 @@ mod tests {
                 let promises =
                     split(settlement.promised(), &Distribution::Even { rungs }).unwrap();
                 let amounts: Vec<u64> =
-                    promises.iter().map(|p| payout(*p, &settlement).unwrap()).collect();
+                    promises.iter().map(|p| payout(*p, settlement.ratio()).unwrap()).collect();
                 let total: u128 = amounts.iter().map(|a| u128::from(*a)).sum();
 
                 assert!(total <= u128::from(settlement.paid()), "{epoch:?} rungs={rungs}");
@@ -654,22 +666,30 @@ mod tests {
 
     #[test]
     fn payout_rejects_a_rung_promised_more_than_its_whole_epoch() {
-        assert!(payout(11, &settlement_of(10, 10)).is_err());
-        assert!(payout(11, &settlement_of(9, 10)).is_err());
+        assert!(payout(11, ratio(10, 10)).is_err());
+        assert!(payout(11, ratio(9, 10)).is_err());
+    }
+
+    #[test]
+    fn payout_rejects_an_epoch_that_pays_more_than_it_promised() {
+        // Scaled by `paid / promised > 1`, every rung would receive more than its promise, and the
+        // redemptions together would reach into another epoch's principal in the shared vault.
+        assert!(payout(5, ratio(11, 10)).is_err());
+        assert!(payout(0, ratio(1, 0)).is_err());
     }
 
     #[test]
     fn payout_pays_an_empty_epoch_nothing_without_dividing_by_zero() {
-        assert_eq!(payout(0, &settlement_of(0, 0)).unwrap(), 0);
+        assert_eq!(payout(0, ratio(0, 0)).unwrap(), 0);
     }
 
     #[test]
     fn payout_uses_u128_for_the_product() {
         // `rung_promised * paid` leaves `u64` long before the division brings it back. Done in
         // `u64` this case would panic under `overflow-checks` instead of paying the rung.
-        let settlement = settlement_of(u64::MAX - 1, u64::MAX);
+        let settlement = ratio(u64::MAX - 1, u64::MAX);
 
-        assert_eq!(payout(u64::MAX, &settlement).unwrap(), u64::MAX - 1);
-        assert_eq!(payout(u64::MAX / 2, &settlement).unwrap(), u64::MAX / 2 - 1);
+        assert_eq!(payout(u64::MAX, settlement).unwrap(), u64::MAX - 1);
+        assert_eq!(payout(u64::MAX / 2, settlement).unwrap(), u64::MAX / 2 - 1);
     }
 }

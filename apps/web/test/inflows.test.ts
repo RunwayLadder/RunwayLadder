@@ -40,6 +40,7 @@ const viewOf = (...statuses: RungStatus[]): LadderView => ({
       totalDeposited: 0n,
       totalPromised: 0n,
       depositSeconds: 0n,
+      redeemed: 0n,
       status: { kind: 'active' as const },
       bump: 255,
     },

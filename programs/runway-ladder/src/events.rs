@@ -65,6 +65,22 @@ pub struct EpochSettled {
     pub settled_at: i64,
 }
 
+/// One rung redeemed (FR-015: when, how much, and where the funds went).
+///
+/// `with_deficit` is explicit rather than left to `amount < promised`: under a deficit a rung
+/// promised nothing receives nothing, which compares equal and would read as "paid in full".
+#[event]
+pub struct RungRedeemed {
+    pub ladder: Pubkey,
+    pub rung: Pubkey,
+    pub epoch: Pubkey,
+    pub destination: Pubkey,
+    pub promised: u64,
+    pub amount: u64,
+    pub with_deficit: bool,
+    pub redeemed_at: i64,
+}
+
 /// The deposit summary. Rungs have events of their own, but the amount the treasurer
 /// signed and the amount the protocol kept belong to none of them individually —
 /// without this event they would have to be gathered by addition (FR-022).

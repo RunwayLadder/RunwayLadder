@@ -65,4 +65,10 @@ pub enum LadderError {
     /// can be wrong, this product cannot survive the upward one.
     #[msg("Rung promise is larger than its epoch's total — the epoch's accounting is inconsistent")]
     RungExceedsEpochPromise,
+
+    /// The same upward direction one level up: an epoch paying out more than it promised, or
+    /// its redemptions adding up to more than it settled for. The vault is shared by every epoch
+    /// of the market, so either would be paid out of another epoch's principal rather than fail.
+    #[msg("Epoch would pay out more than it settled for — the epoch's accounting is inconsistent")]
+    EpochOverpaid,
 }
