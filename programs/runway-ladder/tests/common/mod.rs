@@ -180,14 +180,28 @@ pub struct Env {
     pub accounts: Vec<(svm::Pubkey, Account)>,
 }
 
+/// A fixed asset mint for tests that measure compute. `Pubkey::new_unique` hands out keys in
+/// the order threads reach it, so under the parallel runner a stand's addresses change from run
+/// to run — and with them the bump searches the program does at run time, about 1.5k compute
+/// units per extra try. A measurement over such keys is a coin toss.
+pub const PINNED_MINT: Pubkey = Pubkey::new_from_array([7; 32]);
+
+/// A fixed ladder owner, for the same reason: the ladder address, and every rung address
+/// derived from it, follows from the owner.
+pub const PINNED_OWNER: Pubkey = Pubkey::new_from_array([9; 32]);
+
 impl Env {
     pub fn new(source: YieldSource) -> Self {
+        Self::with_mint(source, Pubkey::new_unique())
+    }
+
+    /// The same stand over a mint the test names — see `PINNED_MINT`.
+    pub fn with_mint(source: YieldSource, asset_mint: Pubkey) -> Self {
         let mut mollusk = Mollusk::new(&key(runway_ladder::ID), "runway_ladder");
         mollusk_svm_programs_token::token::add_program(&mut mollusk);
         mollusk.sysvars.clock.unix_timestamp = NOW;
 
         let authority = Pubkey::new_unique();
-        let asset_mint = Pubkey::new_unique();
 
         let (market, _) = Pubkey::find_program_address(
             &[b"market", asset_mint.as_ref(), &source.seed()],

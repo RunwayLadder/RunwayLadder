@@ -9,7 +9,7 @@ use runway_ladder::math::promise;
 use runway_ladder::state::{Epoch, EpochStatus, YieldSource};
 
 mod common;
-use common::{anchor_error, constraint_error, key, Balances, Deposits, Env, NOW};
+use common::{anchor_error, constraint_error, key, Balances, Deposits, Env, NOW, PINNED_MINT};
 
 const DAY: i64 = 86_400;
 const SPAN: i64 = 90 * DAY;
@@ -254,8 +254,10 @@ fn costs_the_same_whether_the_epoch_holds_one_rung_or_eleven() {
     }
     assert_ne!(one.deposit_seconds, many.deposit_seconds);
 
+    // One mint for both stands: the reserve address is derived at run time, and a different
+    // market would cost a different number of bump tries — a difference that is not the rungs.
     let consumed = [one, many].map(|deposits| {
-        let mut env = Env::new(YieldSource::Deterministic { rate_bps: 400 });
+        let mut env = Env::with_mint(YieldSource::Deterministic { rate_bps: 400 }, PINNED_MINT);
         env.seed_market(25, Balances { vault: WORKING, buffer: 500_000_000, reserve: RESERVE });
         env.seed_settled_epoch(MATURED, 800, deposits);
         settle(&env).compute_units_consumed

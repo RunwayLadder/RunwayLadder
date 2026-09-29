@@ -18,7 +18,7 @@ use runway_ladder::math::Distribution;
 use runway_ladder::state::{RollPolicy, YieldSource};
 
 mod common;
-use common::{key, Env, NOW};
+use common::{key, Env, NOW, PINNED_MINT, PINNED_OWNER};
 
 const DAY: i64 = 86_400;
 /// The maximum transaction size on the network.
@@ -56,12 +56,14 @@ fn budget_instructions() -> Vec<common::svm::Instruction> {
     ]
 }
 
-/// A stand with `rungs` epochs and an open ladder, ready for the deposit.
+/// A stand with `rungs` epochs and an open ladder, ready for the deposit. The keys are pinned:
+/// every address here is derived at run time with a bump search, and on keys that change from
+/// run to run the per-rung cost moved by thousands of compute units between runs.
 fn ladder_of(rungs: usize) -> (Env, Pubkey, Vec<i64>, common::svm::Instruction) {
-    let owner = Pubkey::new_unique();
+    let owner = PINNED_OWNER;
     let maturities: Vec<i64> = (1..=rungs).map(|i| NOW + (i as i64) * 30 * DAY).collect();
 
-    let mut env = Env::new(YieldSource::Deterministic { rate_bps: 600 });
+    let mut env = Env::with_mint(YieldSource::Deterministic { rate_bps: 600 }, PINNED_MINT);
     env.fund(owner);
 
     let ladder = env.ladder(owner, 0);
