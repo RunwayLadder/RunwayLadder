@@ -7,7 +7,7 @@
 use anchor_lang::prelude::Pubkey;
 use anchor_lang::solana_program::instruction::Instruction;
 use anchor_lang::solana_program::program_pack::Pack;
-use anchor_lang::{AccountSerialize, InstructionData, Space, ToAccountMetas};
+use anchor_lang::{AccountDeserialize, AccountSerialize, InstructionData, Space, ToAccountMetas};
 use anchor_spl::token::spl_token;
 use mollusk_svm::Mollusk;
 use solana_account::Account;
@@ -338,12 +338,27 @@ impl Env {
         })
     }
 
-    pub fn rung(&self, ladder: Pubkey, epoch: Pubkey) -> Pubkey {
+    pub fn rung(&self, ladder: Pubkey, index: u32) -> Pubkey {
         Pubkey::find_program_address(
-            &[b"rung", ladder.as_ref(), epoch.as_ref()],
+            &[b"rung", ladder.as_ref(), &index.to_le_bytes()],
             &runway_ladder::ID,
         )
         .0
+    }
+
+    /// The ladder's `rung_count` as the stand holds it: the number its next rung takes. A ladder
+    /// the stand does not hold yet — one a chain opens — has issued nothing.
+    pub fn rung_count(&self, ladder: Pubkey) -> u32 {
+        self.accounts
+            .iter()
+            .find(|(k, _)| *k == key(ladder))
+            .filter(|(_, account)| !account.data.is_empty())
+            .map(|(_, account)| {
+                runway_ladder::state::Ladder::try_deserialize(&mut &account.data[..])
+                    .expect("decodes as Ladder")
+                    .rung_count
+            })
+            .unwrap_or(0)
     }
 
     /// Puts a ready-made epoch into the stand — one `create_epoch` can no longer create.
@@ -498,16 +513,30 @@ impl Env {
         address
     }
 
-    /// An active rung of `ladder` in `epoch`, promised `promised`.
+    /// An active rung of `ladder` in `epoch`, promised `promised`. It takes the ladder's next
+    /// number, and the seeded ladder's `rung_count` moves past it — the same bookkeeping
+    /// `ladder_deposit` does, so a deposit after it lands on the right address.
     pub fn seed_rung(&mut self, ladder: Pubkey, epoch: Pubkey, promised: u64) -> Pubkey {
+        let index = self.rung_count(ladder);
         let (address, bump) = Pubkey::find_program_address(
-            &[b"rung", ladder.as_ref(), epoch.as_ref()],
+            &[b"rung", ladder.as_ref(), &index.to_le_bytes()],
             &runway_ladder::ID,
         );
+
+        let slot = self
+            .accounts
+            .iter_mut()
+            .find(|(k, _)| *k == key(ladder))
+            .expect("the ladder is seeded before its rungs");
+        let mut state = runway_ladder::state::Ladder::try_deserialize(&mut &slot.1.data[..])
+            .expect("decodes as Ladder");
+        state.rung_count = index + 1;
+        state.try_serialize(&mut &mut slot.1.data[..]).expect("serializes as Ladder");
 
         let rung = runway_ladder::state::Rung {
             ladder,
             epoch,
+            index,
             deposited: promised,
             promised,
             fee_paid: 0,
@@ -529,6 +558,7 @@ impl Env {
         signer: Pubkey,
         ladder: Pubkey,
         epoch: Pubkey,
+        index: u32,
         destination: Pubkey,
     ) -> svm::Instruction {
         to_svm(Instruction {
@@ -538,7 +568,7 @@ impl Env {
                 market: self.market,
                 ladder,
                 epoch,
-                rung: self.rung(ladder, epoch),
+                rung: self.rung(ladder, index),
                 vault: self.vault,
                 destination,
                 token_program: spl_token::ID,
@@ -592,6 +622,7 @@ impl Env {
         maturities: &[i64],
     ) -> svm::Instruction {
         let ladder = self.ladder(ladder_owner, seed);
+        let first = self.rung_count(ladder);
 
         let mut metas = runway_ladder::accounts::LadderDeposit {
             owner: signer,
@@ -605,11 +636,11 @@ impl Env {
         }
         .to_account_metas(None);
 
-        for maturity in maturities {
+        for (offset, maturity) in (0u32..).zip(maturities) {
             let epoch = self.epoch(*maturity);
             metas.push(anchor_lang::solana_program::instruction::AccountMeta::new(epoch, false));
             metas.push(anchor_lang::solana_program::instruction::AccountMeta::new(
-                self.rung(ladder, epoch),
+                self.rung(ladder, first + offset),
                 false,
             ));
         }

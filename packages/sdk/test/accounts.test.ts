@@ -30,6 +30,7 @@ type Fixture = {
     base64: string
     ladder: string
     epoch: string
+    index: number
     deposited: number
     promised: number
     fee_paid: number
@@ -212,6 +213,10 @@ describe('decodeRung', () => {
   it('reads every field of the reference account', () => {
     expect(rung.ladder.toBase58()).toBe(fixture.rung.ladder)
     expect(rung.epoch.toBase58()).toBe(fixture.rung.epoch)
+    // Not 0: a decoder reading the index from the wrong offset, or not at all, would come back
+    // with 0 and pass.
+    expect(rung.index).toBe(fixture.rung.index)
+    expect(rung.index).not.toBe(0)
     expect(rung.deposited).toBe(BigInt(fixture.rung.deposited))
     expect(rung.promised).toBe(BigInt(fixture.rung.promised))
     expect(rung.feePaid).toBe(BigInt(fixture.rung.fee_paid))
@@ -233,7 +238,7 @@ describe('decodeRung', () => {
     // The account on the network has the full InitSpace size, while the status variant is
     // short. The tail of zeros must stay a tail, not become an error.
     const raw = Buffer.from(fixture.rung.base64, 'base64')
-    expect(raw.length).toBeGreaterThan(8 + 32 + 32 + 8 + 8 + 8 + 17 + 1 - 1)
+    expect(raw.length).toBeGreaterThan(8 + 32 + 32 + 4 + 8 + 8 + 8 + 17 + 1 - 1)
     expect(() => decodeRung(raw)).not.toThrow()
   })
 })

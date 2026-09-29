@@ -433,13 +433,18 @@
             "Mutable for `redeemed`: the running total that keeps the epoch's redemptions inside what",
             "it settled for."
           ],
-          "writable": true
+          "writable": true,
+          "relations": [
+            "rung"
+          ]
         },
         {
           "name": "rung",
           "docs": [
-            "The seeds bind the rung to this ladder and this epoch: a rung of another ladder, or of",
-            "another epoch of the same ladder, has a different address."
+            "The seeds bind the rung to this ladder, `has_one` to this epoch: a rung of another ladder",
+            "has a different address, and a rung of another epoch names that epoch. The epoch mismatch",
+            "stays on Anchor's built-in error, like `has_one = market` above — it means a broken",
+            "client, not an owner's decision."
           ],
           "writable": true,
           "pda": {
@@ -459,7 +464,8 @@
               },
               {
                 "kind": "account",
-                "path": "epoch"
+                "path": "rung.index",
+                "account": "Rung"
               }
             ]
           }
@@ -1059,7 +1065,8 @@
             "docs": [
               "How many rungs the ladder has issued over its lifetime. A counter, not a plan:",
               "rolling (FR-013) adds rungs after the deposit, so any number declared",
-              "up front would drift from reality on the very first crank."
+              "up front would drift from reality on the very first crank. It is also the number",
+              "the next rung takes in its seeds (`[\"rung\", ladder, index]`)."
             ],
             "type": "u32"
           },
@@ -1255,7 +1262,11 @@
         "",
         "`promised` is written once, at creation. An instruction that overwrites it does not",
         "exist — and this is not a flag check but the absence of a path: to change the terms",
-        "one would have to create another rung in another epoch."
+        "one would have to create another rung.",
+        "",
+        "The address is `[\"rung\", ladder, index]`, not `[\"rung\", ladder, epoch]`: a ladder may hold",
+        "several rungs in one epoch — a second deposit, or a roll into an epoch the ladder already",
+        "uses (FR-013). The tie to the epoch is the `epoch` field, checked with `has_one`."
       ],
       "type": {
         "kind": "struct",
@@ -1267,6 +1278,15 @@
           {
             "name": "epoch",
             "type": "pubkey"
+          },
+          {
+            "name": "index",
+            "docs": [
+              "The rung's number within its ladder — the ladder's `rung_count` at the moment the rung",
+              "was issued. Kept in the account because it is part of the seeds: without it, an",
+              "instruction taking this rung could not check its address."
+            ],
+            "type": "u32"
           },
           {
             "name": "deposited",

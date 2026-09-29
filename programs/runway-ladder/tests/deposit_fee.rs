@@ -30,10 +30,10 @@ fn deposit_with_fee(fee_bps: u16) -> (Env, Pubkey, Pubkey, [i64; 4], Instruction
 
     let ladder = env.ladder(owner, 0);
     env.expect_created(ladder);
-    for maturity in maturities {
+    for (index, maturity) in (0u32..).zip(maturities) {
         let epoch = env.epoch(maturity);
         env.expect_created(epoch);
-        env.expect_created(env.rung(ladder, epoch));
+        env.expect_created(env.rung(ladder, index));
     }
     let source = env.fund_tokens(owner, DEPOSIT);
 
@@ -64,8 +64,8 @@ fn withholds_the_fee_from_every_rung_into_the_buffer() {
     let (env, ladder, source, maturities, result) = deposit_with_fee(FEE_BPS);
 
     // 250_000_000 principal per rung, 0.25% of it — 625_000.
-    for maturity in maturities {
-        let rung = rung_at(&result, env.rung(ladder, env.epoch(maturity)));
+    for (index, maturity) in (0u32..).zip(maturities) {
+        let rung = rung_at(&result, env.rung(ladder, index));
         assert_eq!(rung.fee_paid, 625_000, "withheld from rung {maturity}");
         assert_eq!(rung.deposited, 249_375_000, "to work from rung {maturity}");
     }
@@ -91,7 +91,7 @@ fn the_promise_stands_on_what_actually_went_to_work() {
 
     for (index, maturity) in maturities.iter().enumerate() {
         let epoch_key = env.epoch(*maturity);
-        let rung = rung_at(&result, env.rung(ladder, epoch_key));
+        let rung = rung_at(&result, env.rung(ladder, index as u32));
         assert_eq!(rung.promised, promised[index], "rung {index}");
 
         // The epoch counts what is at work, not the principal: the payout ratio will later come
@@ -105,12 +105,12 @@ fn the_promise_stands_on_what_actually_went_to_work() {
 
 #[test]
 fn a_market_without_a_fee_leaves_the_buffer_empty() {
-    let (env, ladder, _, maturities, result) = deposit_with_fee(0);
+    let (env, ladder, _, _, result) = deposit_with_fee(0);
 
     assert_eq!(env.token_balance(&result, env.buffer_vault), 0);
     assert_eq!(env.token_balance(&result, env.vault), DEPOSIT);
 
-    let rung = rung_at(&result, env.rung(ladder, env.epoch(maturities[0])));
+    let rung = rung_at(&result, env.rung(ladder, 0));
     assert_eq!(rung.fee_paid, 0);
     assert_eq!(rung.deposited, 250_000_000);
 }
@@ -128,14 +128,9 @@ fn the_split_between_work_and_buffer_never_creates_or_loses_a_unit() {
         assert_eq!(vault + buffer, DEPOSIT, "rate {fee_bps}");
         assert_eq!(env.token_balance(&result, source), 0, "rate {fee_bps}");
 
-        let withheld: u64 = maturities
-            .iter()
-            .map(|m| rung_at(&result, env.rung(ladder, env.epoch(*m))).fee_paid)
-            .sum();
-        let working: u64 = maturities
-            .iter()
-            .map(|m| rung_at(&result, env.rung(ladder, env.epoch(*m))).deposited)
-            .sum();
+        let rungs = 0..maturities.len() as u32;
+        let withheld: u64 = rungs.clone().map(|i| rung_at(&result, env.rung(ladder, i)).fee_paid).sum();
+        let working: u64 = rungs.map(|i| rung_at(&result, env.rung(ladder, i)).deposited).sum();
 
         // What is in the buffer equals the sum withheld across the rungs: if the fee were
         // computed from the total, these two numbers would differ by units,

@@ -40,6 +40,7 @@ const epoch = (termDays: bigint): Epoch => ({
 const rung = (status: RungStatus): Rung => ({
   ladder: MARKET_ADDRESS,
   epoch: MARKET_ADDRESS,
+  index: 0,
   deposited: 250_000_000_000n,
   promised: 250_358_835_616n,
   feePaid: 625_000_000n,

@@ -36,9 +36,10 @@
     "bump": 253
   },
   "rung": {
-    "base64": "s3lTrReo7gfyIbsZ0k16R+r84g8C1jSAC5kpfznytJ2INZXku0BwuktYb6lgdc5XApyd1JO9qKeSnOLycU1Kwk0p7fztp+yzGCndDgAAAACiOCgPAAAAAGiJCQAAAAAAAoCy5g4AAAAAojgoDwAAAAD8",
+    "base64": "s3lTrReo7gfyIbsZ0k16R+r84g8C1jSAC5kpfznytJ2INZXku0BwuktYb6lgdc5XApyd1JO9qKeSnOLycU1Kwk0p7fztp+yzAgAAABgp3Q4AAAAAojgoDwAAAABoiQkAAAAAAAKAsuYOAAAAAKI4KA8AAAAA/A==",
     "ladder": "HJBVgrDsPMsqh3Y8ss8axGiYVK5UGq55jhgwaSztysiR",
     "epoch": "657ns3AmopPyHNGLmADGy6cVVhVoRTua699bfuDfLeH8",
+    "index": 2,
     "deposited": 249375000,
     "promised": 254294178,
     "fee_paid": 625000,

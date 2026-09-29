@@ -25,6 +25,7 @@ const viewOf = (...statuses: RungStatus[]): LadderView => ({
     rung: {
       ladder: KEY,
       epoch: KEY,
+      index,
       deposited: 250_000_000_000n,
       promised: 250_358_835_616n,
       feePaid: 625_000_000n,

@@ -30,12 +30,20 @@ pub enum RungStatus {
 ///
 /// `promised` is written once, at creation. An instruction that overwrites it does not
 /// exist — and this is not a flag check but the absence of a path: to change the terms
-/// one would have to create another rung in another epoch.
+/// one would have to create another rung.
+///
+/// The address is `["rung", ladder, index]`, not `["rung", ladder, epoch]`: a ladder may hold
+/// several rungs in one epoch — a second deposit, or a roll into an epoch the ladder already
+/// uses (FR-013). The tie to the epoch is the `epoch` field, checked with `has_one`.
 #[account]
 #[derive(InitSpace)]
 pub struct Rung {
     pub ladder: Pubkey,
     pub epoch: Pubkey,
+    /// The rung's number within its ladder — the ladder's `rung_count` at the moment the rung
+    /// was issued. Kept in the account because it is part of the seeds: without it, an
+    /// instruction taking this rung could not check its address.
+    pub index: u32,
     /// How much actually went to work — the amount after the protocol fee.
     pub deposited: u64,
     /// How much the treasury receives on the maturity date. The same number the treasurer
@@ -106,6 +114,10 @@ pub fn ladder_deposit<'info>(
     let now = Clock::get()?.unix_timestamp;
     let ladder_key = ctx.accounts.ladder.key();
     let market_key = ctx.accounts.market.key();
+    // The rungs of this deposit take the ladder's next numbers in order. A client that read
+    // `rung_count` before someone else issued a rung here derives stale addresses and is
+    // refused below, before any funds move.
+    let first_index = ctx.accounts.ladder.rung_count;
 
     // The fee is computed from each rung's principal separately, not from the whole amount:
     // otherwise rounding down would happen once instead of n times, and the total withheld
@@ -143,7 +155,12 @@ pub fn ladder_deposit<'info>(
         let promised = promise(working, epoch.rate_bps, seconds)?;
 
         let epoch_key = epoch.key();
-        let seeds: &[&[u8]] = &[b"rung", ladder_key.as_ref(), epoch_key.as_ref()];
+        let rung_index = u32::try_from(index)
+            .ok()
+            .and_then(|offset| first_index.checked_add(offset))
+            .ok_or(LadderError::MathOverflow)?;
+        let index_bytes = rung_index.to_le_bytes();
+        let seeds: &[&[u8]] = &[b"rung", ladder_key.as_ref(), &index_bytes];
         let (expected, bump) = Pubkey::find_program_address(seeds, &crate::ID);
         require_keys_eq!(rung_info.key(), expected, LadderError::RungAccountsMismatch);
 
@@ -155,7 +172,7 @@ pub fn ladder_deposit<'info>(
                     from: ctx.accounts.owner.to_account_info(),
                     to: rung_info.clone(),
                 },
-                &[&[b"rung", ladder_key.as_ref(), epoch_key.as_ref(), &[bump]]],
+                &[&[b"rung", ladder_key.as_ref(), &index_bytes, &[bump]]],
             ),
             Rent::get()?.minimum_balance(space),
             space as u64,
@@ -165,6 +182,7 @@ pub fn ladder_deposit<'info>(
         let rung = Rung {
             ladder: ladder_key,
             epoch: epoch_key,
+            index: rung_index,
             deposited: working,
             promised,
             fee_paid,
@@ -271,12 +289,15 @@ pub struct RedeemRung<'info> {
     #[account(mut, has_one = market)]
     pub epoch: Account<'info, Epoch>,
 
-    /// The seeds bind the rung to this ladder and this epoch: a rung of another ladder, or of
-    /// another epoch of the same ladder, has a different address.
+    /// The seeds bind the rung to this ladder, `has_one` to this epoch: a rung of another ladder
+    /// has a different address, and a rung of another epoch names that epoch. The epoch mismatch
+    /// stays on Anchor's built-in error, like `has_one = market` above — it means a broken
+    /// client, not an owner's decision.
     #[account(
         mut,
-        seeds = [b"rung", ladder.key().as_ref(), epoch.key().as_ref()],
+        seeds = [b"rung", ladder.key().as_ref(), &rung.index.to_le_bytes()],
         bump = rung.bump,
+        has_one = epoch,
     )]
     pub rung: Account<'info, Rung>,
 

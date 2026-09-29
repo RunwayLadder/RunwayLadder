@@ -168,6 +168,7 @@ const rungSchema = z
   .object({
     ladder: publicKey,
     epoch: publicKey,
+    index: z.number().int().min(0),
     deposited: u64,
     promised: u64,
     fee_paid: u64,
@@ -177,6 +178,7 @@ const rungSchema = z
   .transform((r) => ({
     ladder: r.ladder,
     epoch: r.epoch,
+    index: r.index,
     deposited: r.deposited,
     promised: r.promised,
     feePaid: r.fee_paid,

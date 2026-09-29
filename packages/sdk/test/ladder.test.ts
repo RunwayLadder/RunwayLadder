@@ -27,7 +27,7 @@ type Fixture = {
   ladder: string
   market: string
   epochs: { maturity_ts: number; address: string }[]
-  rungs: { maturity_ts: number; address: string }[]
+  rungs: { index: number; address: string }[]
 }
 
 const pdas = JSON.parse(
@@ -58,8 +58,11 @@ const base = {
   maturities,
 }
 
+/** A deposit into a ladder that has already issued three rungs. */
+const existing = { ...base, firstRung: 3 }
+
 describe('buildLadderDeposit', () => {
-  const instructions = buildLadderDeposit(base)
+  const instructions = buildLadderDeposit(existing)
   const deposit = instructions[1]
   if (!deposit) throw new Error('deposit instruction')
 
@@ -71,7 +74,7 @@ describe('buildLadderDeposit', () => {
     expect(instructions).toHaveLength(2)
   })
 
-  it('puts the epoch and its rung side by side, in the order of the split', () => {
+  it('puts the epoch and its rung side by side, numbering the rungs on from the ladder', () => {
     const ladder = ladderAddress(PROGRAM_ID, owner, seed)
     const tail = deposit.keys.slice(8)
 
@@ -80,7 +83,7 @@ describe('buildLadderDeposit', () => {
       const epoch = epochAddress(PROGRAM_ID, market, maturity)
       expect(tail[index * 2]?.pubkey.toBase58()).toBe(epoch.toBase58())
       expect(tail[index * 2 + 1]?.pubkey.toBase58()).toBe(
-        rungAddress(PROGRAM_ID, ladder, epoch).toBase58(),
+        rungAddress(PROGRAM_ID, ladder, existing.firstRung + index).toBase58(),
       )
     })
   })
@@ -104,7 +107,7 @@ describe('buildLadderDeposit', () => {
 
   it('carries weights through in the shape the program expects', () => {
     const [, weighted] = buildLadderDeposit({
-      ...base,
+      ...existing,
       distribution: { kind: 'weighted', weightsBps: [6_000, 4_000] },
     })
     if (!weighted) throw new Error('deposit instruction')
@@ -121,7 +124,7 @@ describe('buildLadderDeposit', () => {
     const rungs = MAX_RUNGS_PER_DEPOSIT + 1
     expect(() =>
       buildLadderDeposit({
-        ...base,
+        ...existing,
         distribution: { kind: 'even', rungs },
         maturities: Array.from({ length: rungs }, (_, i) => 1_800_000_000n + BigInt(i)),
       }),
@@ -129,13 +132,13 @@ describe('buildLadderDeposit', () => {
   })
 
   it('refuses a split whose rungs and maturities disagree', () => {
-    expect(() => buildLadderDeposit({ ...base, distribution: { kind: 'even', rungs: 3 } })).toThrow(
-      /maturity dates/,
-    )
+    expect(() =>
+      buildLadderDeposit({ ...existing, distribution: { kind: 'even', rungs: 3 } }),
+    ).toThrow(/maturity dates/)
   })
 
   it('refuses an empty deposit', () => {
-    expect(() => buildLadderDeposit({ ...base, amount: 0n })).toThrow(/greater than zero/)
+    expect(() => buildLadderDeposit({ ...existing, amount: 0n })).toThrow(/greater than zero/)
   })
 })
 
@@ -227,6 +230,15 @@ describe('buildLadderSetup', () => {
     expect(instructions[2]?.keys[2]?.pubkey.toBase58()).toBe(ladder)
   })
 
+  it('numbers the rungs of the ladder it opens from zero', () => {
+    const ladder = ladderAddress(PROGRAM_ID, owner, seed)
+    const rungs = (instructions[2]?.keys ?? []).slice(8).filter((_, i) => i % 2 === 1)
+
+    expect(rungs.map((k) => k.pubkey.toBase58())).toEqual(
+      maturities.map((_, index) => rungAddress(PROGRAM_ID, ladder, index).toBase58()),
+    )
+  })
+
   it('asks for more compute than the deposit alone', () => {
     // The limit applies to the transaction, not the instruction: opening the ladder
     // spends compute from the same ceiling.
@@ -237,7 +249,7 @@ describe('buildLadderSetup', () => {
       return ix.data.readUInt32LE(1)
     }
 
-    expect(units(instructions[0])).toBeGreaterThan(units(buildLadderDeposit(base)[0]))
+    expect(units(instructions[0])).toBeGreaterThan(units(buildLadderDeposit(existing)[0]))
   })
 
   it('still fits in one packet at the ceiling, priority fee included', () => {

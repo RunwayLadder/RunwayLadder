@@ -13,7 +13,7 @@ use runway_ladder::math::Distribution;
 use runway_ladder::state::{Epoch, Ladder, Rung, RollPolicy, RungStatus, YieldSource};
 
 mod common;
-use common::{anchor_error, key, Env, NOW};
+use common::{anchor_error, key, Balances, Env, NOW};
 
 const DAY: i64 = 86_400;
 const RATE_BPS: u16 = 800;
@@ -29,10 +29,10 @@ fn ready(owner: Pubkey, maturities: &[i64], min_rung_amount: u64) -> (Env, Pubke
     let ladder = env.ladder(owner, 0);
     env.expect_created(ladder);
 
-    for maturity in maturities {
+    for (index, maturity) in (0u32..).zip(maturities) {
         let epoch = env.epoch(*maturity);
         env.expect_created(epoch);
-        env.expect_created(env.rung(ladder, epoch));
+        env.expect_created(env.rung(ladder, index));
     }
 
     let source = env.fund_tokens(owner, DEPOSIT);
@@ -95,7 +95,7 @@ fn splits_the_deposit_across_every_rung_in_one_signature() {
 
     for (index, maturity) in maturities.iter().enumerate() {
         let epoch_key = env.epoch(*maturity);
-        let rung = rung_at(&result, env.rung(ladder_key, epoch_key));
+        let rung = rung_at(&result, env.rung(ladder_key, index as u32));
 
         assert_eq!(rung.ladder, ladder_key, "rung {index}");
         assert_eq!(rung.epoch, epoch_key, "rung {index}");
@@ -139,9 +139,9 @@ fn weighted_rungs_follow_the_weights() {
         (200_000_000, 211_835_616),
     ];
 
-    for (index, maturity) in maturities.iter().enumerate() {
-        let rung = rung_at(&result, env.rung(ladder_key, env.epoch(*maturity)));
-        assert_eq!((rung.deposited, rung.promised), expected[index], "rung {index}");
+    for (index, expected) in expected.iter().enumerate() {
+        let rung = rung_at(&result, env.rung(ladder_key, index as u32));
+        assert_eq!((rung.deposited, rung.promised), *expected, "rung {index}");
     }
 }
 
@@ -200,8 +200,8 @@ fn rejects_an_epoch_whose_maturity_has_already_passed() {
     let (mut env, ladder, source) = ready(owner, &[], 0);
 
     let past = NOW - DAY;
-    let epoch = env.seed_epoch(past, RATE_BPS);
-    env.expect_created(env.rung(ladder, epoch));
+    env.seed_epoch(past, RATE_BPS);
+    env.expect_created(env.rung(ladder, 0));
 
     let deposit =
         env.ladder_deposit(owner, 0, source, DEPOSIT, Distribution::Even { rungs: 1 }, &[past]);
@@ -215,7 +215,7 @@ fn rejects_an_epoch_whose_maturity_has_already_passed() {
 
     // An epoch that has already matured is a promise in the past. No rung exists in it,
     // and the funds stayed with the treasury.
-    assert!(result.get_account(&key(env.rung(ladder, epoch))).expect("rung").data.is_empty());
+    assert!(result.get_account(&key(env.rung(ladder, 0))).expect("rung").data.is_empty());
 }
 
 #[test]
@@ -248,4 +248,70 @@ fn rejects_an_empty_deposit() {
         env.ladder_deposit(owner, 0, source, 0, Distribution::Even { rungs: 1 }, &maturities);
 
     run(&env, &maturities, owner, deposit, Check::err(anchor_error(LadderError::ZeroAmount)));
+}
+
+#[test]
+fn a_second_rung_in_an_epoch_the_ladder_already_uses_takes_the_next_number() {
+    // A rung is addressed by its number in the ladder, not by its epoch: a treasury that tops
+    // up the same date later — or a roll landing in an epoch the ladder already holds — gets
+    // a rung of its own instead of running into an occupied address.
+    let owner = Pubkey::new_unique();
+    let maturity = NOW + 90 * DAY;
+
+    let mut env = Env::new(YieldSource::Deterministic { rate_bps: 600 });
+    env.fund(owner);
+    env.seed_market(0, Balances::default());
+    let epoch = env.seed_epoch(maturity, RATE_BPS);
+    let ladder = env.seed_ladder(owner, 0, RollPolicy::None);
+    let first = env.seed_rung(ladder, epoch, 1_000);
+    env.expect_created(env.rung(ladder, 1));
+    let source = env.fund_tokens(owner, DEPOSIT);
+
+    let deposit =
+        env.ladder_deposit(owner, 0, source, DEPOSIT, Distribution::Even { rungs: 1 }, &[maturity]);
+    let result =
+        env.mollusk.process_and_validate_instruction_chain(&[(&deposit, &[Check::success()])], &env.accounts);
+
+    let second = rung_at(&result, env.rung(ladder, 1));
+    assert_eq!(second.epoch, epoch);
+    assert_eq!(second.index, 1);
+    assert_eq!(second.deposited, DEPOSIT);
+
+    // The first rung is where it was, untouched.
+    let before = rung_at(&result, first);
+    assert_eq!((before.index, before.promised), (0, 1_000));
+
+    let raw = &result.get_account(&key(ladder)).expect("ladder").data;
+    let ladder = Ladder::try_deserialize(&mut &raw[..]).expect("decodes as Ladder");
+    assert_eq!(ladder.rung_count, 2);
+}
+
+#[test]
+fn a_rung_address_off_the_ladders_next_number_is_refused() {
+    // The rung numbers are not the client's to choose: skipping one would leave a hole that
+    // no later rung fills, and reusing one would collide.
+    let owner = Pubkey::new_unique();
+    let maturities = [NOW + 90 * DAY];
+    let (mut env, ladder, source) = ready(owner, &maturities, 0);
+    let skipped = env.rung(ladder, 1);
+    env.expect_created(skipped);
+
+    let mut deposit =
+        env.ladder_deposit(owner, 0, source, DEPOSIT, Distribution::Even { rungs: 1 }, &maturities);
+    let slot = deposit
+        .accounts
+        .iter_mut()
+        .find(|meta| meta.pubkey == key(env.rung(ladder, 0)))
+        .expect("the rung is among the accounts");
+    slot.pubkey = key(skipped);
+
+    let result = run(
+        &env,
+        &maturities,
+        owner,
+        deposit,
+        Check::err(anchor_error(LadderError::RungAccountsMismatch)),
+    );
+
+    assert_eq!(env.token_balance(&result, source), DEPOSIT);
 }

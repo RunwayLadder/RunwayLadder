@@ -8,7 +8,9 @@ import {
   associatedTokenAddress,
   bufferVaultAddress,
   epochAddress,
+  ladderAddress,
   marketAddress,
+  rungAddress,
   sourceReserveAddress,
   vaultAddress,
 } from '../src/pda.js'
@@ -21,6 +23,10 @@ type Fixture = {
   buffer_vault: string
   source_reserve: string
   epochs: { maturity_ts: number; address: string }[]
+  ladder_owner: string
+  ladder_seed: number
+  ladder: string
+  rungs: { index: number; address: string }[]
 }
 
 const path = fileURLToPath(new URL('../../../fixtures/pdas.json', import.meta.url))
@@ -55,6 +61,32 @@ describe('addresses', () => {
   it('gives a different address to every maturity', () => {
     const seen = new Set(fixture.epochs.map((c) => c.address))
     expect(seen.size).toBe(fixture.epochs.length)
+  })
+
+  const ladder = ladderAddress(
+    PROGRAM_ID,
+    new PublicKey(fixture.ladder_owner),
+    BigInt(fixture.ladder_seed),
+  )
+
+  it('derives the ladder', () => {
+    expect(ladder.toBase58()).toBe(fixture.ladder)
+  })
+
+  it.each(fixture.rungs)('derives rung number $index', (c) => {
+    expect(rungAddress(PROGRAM_ID, ladder, c.index).toBase58()).toBe(c.address)
+  })
+
+  // The number is four bytes in the seeds. A case past 65 535 tells a u32 from a u16: written
+  // as two bytes it would give a valid address with no rung behind it.
+  it('writes the rung number as a u32', () => {
+    expect(fixture.rungs.some((c) => c.index > 0xffff)).toBe(true)
+  })
+
+  it('refuses a rung number the program could not have issued', () => {
+    for (const index of [-1, 1.5, 2 ** 32]) {
+      expect(() => rungAddress(PROGRAM_ID, ladder, index)).toThrow(RangeError)
+    }
   })
 })
 

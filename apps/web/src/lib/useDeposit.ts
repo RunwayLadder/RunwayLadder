@@ -78,8 +78,8 @@ export function useDeposit({
       return { kind: 'unknown', reason: 'Reading your ladder from the network…' }
     }
     if (ladderQuery.isError) {
-      // Not "assume there is no ladder": an unread ladder may already hold
-      // a rung in the same epoch, and signing blind would cost a fee.
+      // Not "assume there is no ladder": an unread ladder may already exist, and its
+      // rung count decides the rung addresses — signing blind would cost a fee.
       return {
         kind: 'unknown',
         reason: `Your ladder could not be read: ${message(ladderQuery.error)}`,
@@ -87,7 +87,7 @@ export function useDeposit({
     }
     if (!ladderQuery.data) return { kind: 'absent' }
 
-    return { kind: 'open', rungEpochs: ladderQuery.data.rungs.map((rung) => rung.rung.epoch) }
+    return { kind: 'open', rungCount: ladderQuery.data.ladder.rungCount }
   }, [publicKey, ladderQuery])
 
   const action = useMemo((): DepositAction | null => {

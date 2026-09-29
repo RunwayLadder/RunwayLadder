@@ -63,17 +63,13 @@ fn sdk_addresses_match_the_program_seeds() {
         Pubkey::find_program_address(&[b"ladder", owner.as_ref(), &seed.to_le_bytes()], &program_id);
     assert_eq!(ladder, pubkey(&f["ladder"]), "ladder");
 
+    // The rung number is a u32: a case past 65 535 is in the fixture so that a client writing
+    // it as two bytes derives a different address and fails here, not on chain.
     for case in f["rungs"].as_array().expect("rungs") {
-        let maturity_ts = case["maturity_ts"].as_i64().expect("maturity_ts");
-        let (epoch, _) = Pubkey::find_program_address(
-            &[b"epoch", market.as_ref(), &maturity_ts.to_le_bytes()],
-            &program_id,
-        );
-        let (rung, _) = Pubkey::find_program_address(
-            &[b"rung", ladder.as_ref(), epoch.as_ref()],
-            &program_id,
-        );
-        assert_eq!(rung, pubkey(&case["address"]), "rung {maturity_ts}");
+        let index = u32::try_from(case["index"].as_u64().expect("index")).expect("a u32 index");
+        let (rung, _) =
+            Pubkey::find_program_address(&[b"rung", ladder.as_ref(), &index.to_le_bytes()], &program_id);
+        assert_eq!(rung, pubkey(&case["address"]), "rung {index}");
     }
 }
 

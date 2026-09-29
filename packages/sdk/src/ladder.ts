@@ -65,6 +65,12 @@ export type LadderDepositParams = {
   distribution: Distribution
   /** Maturity dates, one per rung, in deposit order. */
   maturities: readonly bigint[]
+  /**
+   * The ladder's `rungCount` as read before signing: the deposit's rungs take the numbers from
+   * here on. If another rung is issued in between — a roll by the crank — the addresses are
+   * stale and the program refuses the deposit before any funds move.
+   */
+  firstRung: number
   programId?: PublicKey
 }
 
@@ -119,7 +125,9 @@ export function buildOpenLadder(params: OpenLadderParams): TransactionInstructio
   })
 }
 
-export type LadderSetupParams = LadderDepositParams & Pick<OpenLadderParams, 'rollPolicy'>
+/** A ladder opened by the same signature has issued nothing, so its first rung is number 0. */
+export type LadderSetupParams = Omit<LadderDepositParams, 'firstRung'> &
+  Pick<OpenLadderParams, 'rollPolicy'>
 
 /**
  * The treasurer's first deposit: open the ladder and put funds into it —
@@ -140,7 +148,7 @@ export function buildLadderSetup(params: LadderSetupParams): TransactionInstruct
   return [
     ComputeBudgetProgram.setComputeUnitLimit({ units: computeUnitLimit(rungs, true) }),
     buildOpenLadder(params),
-    depositInstruction(params),
+    depositInstruction({ ...params, firstRung: 0 }),
   ]
 }
 
@@ -162,11 +170,12 @@ function depositInstruction(params: LadderDepositParams): TransactionInstruction
 
   // An "epoch, rung" pair for every date, in the same order as the deposit
   // parts: the program reads them by index, not by name.
-  for (const maturity of params.maturities) {
+  params.maturities.forEach((maturity, offset) => {
     const epoch = epochAddress(programId, params.market, maturity)
+    const rung = rungAddress(programId, ladder, params.firstRung + offset)
     keys.push({ pubkey: epoch, isSigner: false, isWritable: true })
-    keys.push({ pubkey: rungAddress(programId, ladder, epoch), isSigner: false, isWritable: true })
-  }
+    keys.push({ pubkey: rung, isSigner: false, isWritable: true })
+  })
 
   const data = coder.encode('ladder_deposit', {
     amount: new BN(params.amount.toString()),
@@ -182,7 +191,7 @@ function depositInstruction(params: LadderDepositParams): TransactionInstruction
  * The checks here duplicate the onchain refusals on purpose. The program would say the
  * same, but after signing — and the treasurer must see the error before it.
  */
-function checkedRungCount(params: LadderDepositParams): number {
+function checkedRungCount(params: Omit<LadderDepositParams, 'firstRung'>): number {
   const rungs = rungCount(params.distribution)
 
   if (params.amount <= 0n) {

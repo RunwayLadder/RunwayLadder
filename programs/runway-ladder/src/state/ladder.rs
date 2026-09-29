@@ -33,7 +33,8 @@ pub struct Ladder {
     pub seed: u64,
     /// How many rungs the ladder has issued over its lifetime. A counter, not a plan:
     /// rolling (FR-013) adds rungs after the deposit, so any number declared
-    /// up front would drift from reality on the very first crank.
+    /// up front would drift from reality on the very first crank. It is also the number
+    /// the next rung takes in its seeds (`["rung", ladder, index]`).
     pub rung_count: u32,
     pub roll_policy: RollPolicy,
     pub created_at: i64,

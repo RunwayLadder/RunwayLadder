@@ -77,11 +77,20 @@ export function ladderAddress(programId: PublicKey, owner: PublicKey, seed: bigi
 }
 
 /**
- * A rung is uniquely defined by the pair "ladder, epoch". A consequence visible
- * only from here: one ladder cannot have two rungs in one epoch.
+ * A rung is addressed by its number in the ladder, not by its epoch: one ladder may hold
+ * several rungs in one epoch. The number is the ladder's `rungCount` at the moment the rung was
+ * issued, written as a `u32` — four bytes, little-endian.
  */
-export function rungAddress(programId: PublicKey, ladder: PublicKey, epoch: PublicKey): PublicKey {
-  return PublicKey.findProgramAddressSync([RUNG, ladder.toBuffer(), epoch.toBuffer()], programId)[0]
+export function rungAddress(programId: PublicKey, ladder: PublicKey, index: number): PublicKey {
+  // `writeUInt32LE` refuses a negative or too large number but truncates a fractional one —
+  // into some other rung's address. The check is explicit for all three.
+  if (!Number.isInteger(index) || index < 0 || index > 0xffff_ffff) {
+    throw new RangeError(`rung number ${index} is not a u32`)
+  }
+  const bytes = Buffer.alloc(4)
+  bytes.writeUInt32LE(index)
+
+  return PublicKey.findProgramAddressSync([RUNG, ladder.toBuffer(), bytes], programId)[0]
 }
 
 /**

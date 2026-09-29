@@ -115,21 +115,6 @@ describe('depositAction · why there will be no signature', () => {
     const reason = 'Your ladder could not be read: 429 Too Many Requests'
     expect(blocked({ ladder: { kind: 'unknown', reason } })).toBe(reason)
   })
-
-  it('names the maturity the ladder already holds', () => {
-    // A rung is addressed by the pair "ladder, epoch": a second one in the same epoch cannot
-    // exist. Onchain this is a refusal after signing, here — a date in the explanation.
-    const plan = planOf()
-    const taken = plan.rungs[0]?.epoch.maturityTs
-    if (taken === undefined) throw new Error('plan without rungs')
-
-    const ladder: LadderState = {
-      kind: 'open',
-      rungEpochs: [epochAddress(PROGRAM_ID, market, taken)],
-    }
-
-    expect(blocked({ ladder })).toMatch(/already holds a rung maturing on 2027-01-15/)
-  })
 })
 
 describe('depositAction · what goes to the network', () => {
@@ -143,15 +128,26 @@ describe('depositAction · what goes to the network', () => {
   })
 
   it('only deposits when the ladder is already open', () => {
-    // The ladder exists, and none of its rungs sits on the dates of this deposit.
-    const ladder: LadderState = {
-      kind: 'open',
-      rungEpochs: [epochAddress(PROGRAM_ID, market, 1_999_000_000n)],
-    }
-    const action = ready({ ladder })
+    const action = ready({ ladder: { kind: 'open', rungCount: 2 } })
 
     expect(action.opensLadder).toBe(false)
     expect(action.instructions).toHaveLength(2)
+  })
+
+  it('adds rungs on the dates the ladder already holds, numbered on from its count', () => {
+    // A rung is addressed by its number in the ladder, not by its epoch: a top-up on the same
+    // dates is a new rung each, not an occupied address.
+    const plan = planOf()
+    const ladder: LadderState = { kind: 'open', rungCount: 2 }
+    const action = depositAction(plan, context({ ladder }))
+    if (action.kind !== 'ready') throw new Error(`expected instructions, got: ${action.reason}`)
+
+    const address = ladderAddress(PROGRAM_ID, owner, 0n)
+    const rungs = (action.instructions.at(-1)?.keys.slice(8) ?? []).filter((_, i) => i % 2 === 1)
+
+    expect(rungs.map((k) => k.pubkey.toBase58())).toEqual(
+      plan.rungs.map((_, index) => rungAddress(PROGRAM_ID, address, 2 + index).toBase58()),
+    )
   })
 
   it('spends from the owner’s associated account, not from an address of ours', () => {
@@ -174,7 +170,7 @@ describe('depositAction · what goes to the network', () => {
       const epoch = epochAddress(PROGRAM_ID, market, rung.epoch.maturityTs)
       expect(tail[index * 2]?.pubkey.toBase58()).toBe(epoch.toBase58())
       expect(tail[index * 2 + 1]?.pubkey.toBase58()).toBe(
-        rungAddress(PROGRAM_ID, ladder, epoch).toBase58(),
+        rungAddress(PROGRAM_ID, ladder, index).toBase58(),
       )
     })
   })

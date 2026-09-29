@@ -26,16 +26,16 @@
   "ladder": "HJBVgrDsPMsqh3Y8ss8axGiYVK5UGq55jhgwaSztysiR",
   "rungs": [
     {
-      "maturity_ts": 1800000000,
-      "address": "erBvPKr4SnZX7XynhYvkpYmbBs7qGffaCuqiMxfk9VC"
+      "index": 0,
+      "address": "Bqk3HDXVDbwHAQMnDUpimc9qCNP9dpUJmMacXTRSDq1S"
     },
     {
-      "maturity_ts": 1807776000,
-      "address": "2oHerB4gqBPPPcmXNNPymhmD9hz6eiCU7rPiMqy4VHVW"
+      "index": 1,
+      "address": "BKBcxvK2uymfs6aujAp5wHUDmQ8yH57C3TmfibgdaRnv"
     },
     {
-      "maturity_ts": -86400,
-      "address": "68GvDdqaetx8yDdqWkGfgq5LKGaz83ZtsLQWrjnjRksB"
+      "index": 70000,
+      "address": "Dqo9XLvfkP3UtzZjX6gUHswcB2w1FBy1BsPxEnMNaiFt"
     }
   ]
 }

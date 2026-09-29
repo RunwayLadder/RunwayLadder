@@ -27,8 +27,8 @@ struct Stand {
 }
 
 /// One rung per promise in `promises`, all of `owner` and all in one matured epoch whose status
-/// is `status`. Each rung sits in a ladder of its own: the rung seeds allow one rung per ladder
-/// per epoch (T039). The vault holds what the epoch settled for on top of `OTHERS`.
+/// is `status`. Each rung sits in a ladder of its own, as its number 0, so a test names a rung by
+/// its ladder alone. The vault holds what the epoch settled for on top of `OTHERS`.
 fn stand(status: EpochStatus, promises: &[u64], policy: RollPolicy) -> (Stand, Vec<Pubkey>) {
     let mut env = Env::new(YieldSource::Deterministic { rate_bps: 800 });
 
@@ -63,11 +63,11 @@ fn stand(status: EpochStatus, promises: &[u64], policy: RollPolicy) -> (Stand, V
 }
 
 fn redeem(s: &Stand, ladder: Pubkey) -> svm::Instruction {
-    s.env.redeem_rung(s.owner, ladder, s.epoch, s.wallet)
+    s.env.redeem_rung(s.owner, ladder, s.epoch, 0, s.wallet)
 }
 
 fn rung_status(s: &Stand, result: &InstructionResult, ladder: Pubkey) -> RungStatus {
-    let raw = &result.get_account(&key(s.env.rung(ladder, s.epoch))).expect("rung").data;
+    let raw = &result.get_account(&key(s.env.rung(ladder, 0))).expect("rung").data;
     Rung::try_deserialize(&mut &raw[..]).expect("decodes as Rung").status
 }
 
@@ -198,7 +198,7 @@ fn a_stranger_cannot_redeem_the_owners_rung() {
     s.env.fund(stranger);
     let theirs = s.env.fund_tokens(stranger, 0);
 
-    let ix = s.env.redeem_rung(stranger, s.ladder, s.epoch, theirs);
+    let ix = s.env.redeem_rung(stranger, s.ladder, s.epoch, 0, theirs);
     s.env.mollusk.process_and_validate_instruction_chain(
         &[(&ix, &[Check::err(anchor_error(LadderError::NotLadderOwner))])],
         &s.env.accounts,
@@ -210,7 +210,7 @@ fn the_owner_cannot_redeem_into_someone_elses_account() {
     let (mut s, _) = stand(EpochStatus::Settled { paid: 1_000 }, &[1_000], RollPolicy::None);
     let theirs = s.env.fund_tokens(Pubkey::new_unique(), 0);
 
-    let ix = s.env.redeem_rung(s.owner, s.ladder, s.epoch, theirs);
+    let ix = s.env.redeem_rung(s.owner, s.ladder, s.epoch, 0, theirs);
     s.env.mollusk.process_and_validate_instruction_chain(
         &[(&ix, &[Check::err(constraint_error(ErrorCode::ConstraintTokenOwner))])],
         &s.env.accounts,
@@ -221,7 +221,8 @@ fn the_owner_cannot_redeem_into_someone_elses_account() {
 fn a_rung_cannot_be_redeemed_against_another_epochs_ratio() {
     // The rung sits in an epoch that settled at a deficit; a second epoch of the same market
     // settled at par. Passing the par epoch next to the deficit rung would pay it in full — the
-    // rung seeds are what makes that pairing impossible.
+    // epoch the rung names (`has_one = epoch`) is what makes that pairing impossible. The seeds
+    // no longer do: they carry the rung's number, not its epoch.
     let (mut s, _) =
         stand(EpochStatus::SettledWithDeficit { paid: 500, deficit: 500 }, &[1_000], RollPolicy::None);
     let at_par = s.env.seed_settled_epoch(
@@ -242,6 +243,26 @@ fn a_rung_cannot_be_redeemed_against_another_epochs_ratio() {
         .find(|meta| meta.pubkey == key(s.epoch))
         .expect("the epoch is among the accounts");
     slot.pubkey = key(at_par);
+
+    s.env.mollusk.process_and_validate_instruction_chain(
+        &[(&ix, &[Check::err(constraint_error(ErrorCode::ConstraintHasOne))])],
+        &s.env.accounts,
+    );
+}
+
+#[test]
+fn a_rung_cannot_be_redeemed_through_another_ladder_of_the_same_owner() {
+    // Both ladders are the owner's, so `has_one = owner` passes for either. Only the seeds tie
+    // the rung to its own ladder — and with them its roll policy and its bookkeeping.
+    let (s, ladders) = stand(EpochStatus::Settled { paid: 2_000 }, &[1_000, 1_000], RollPolicy::None);
+
+    let mut ix = redeem(&s, ladders[1]);
+    let slot = ix
+        .accounts
+        .iter_mut()
+        .find(|meta| meta.pubkey == key(s.env.rung(ladders[1], 0)))
+        .expect("the rung is among the accounts");
+    slot.pubkey = key(s.env.rung(ladders[0], 0));
 
     s.env.mollusk.process_and_validate_instruction_chain(
         &[(&ix, &[Check::err(constraint_error(ErrorCode::ConstraintSeeds))])],
@@ -275,7 +296,7 @@ fn an_epoch_never_pays_past_what_it_settled_for() {
 
     env.mollusk.process_and_validate_instruction_chain(
         &[(
-            &env.redeem_rung(owner, ladder, epoch, wallet),
+            &env.redeem_rung(owner, ladder, epoch, 0, wallet),
             &[Check::err(anchor_error(LadderError::EpochOverpaid))],
         )],
         &env.accounts,

@@ -7,12 +7,7 @@
  * only alternative to a disabled button without explanation is a treasurer who does not know what to expect.
  */
 
-import {
-  associatedTokenAddress,
-  buildLadderDeposit,
-  buildLadderSetup,
-  epochAddress,
-} from '@runway-ladder/sdk'
+import { associatedTokenAddress, buildLadderDeposit, buildLadderSetup } from '@runway-ladder/sdk'
 import type { PublicKey, TransactionInstruction } from '@solana/web3.js'
 import type { Plan } from '@/lib/plan'
 
@@ -32,11 +27,14 @@ export type MarketState =
  * `unknown` here for the same reason: both guesses cost the treasurer a signature.
  * Guessing "no ladder" on an open one runs into an occupied address, guessing
  * "ladder exists" on an empty one into an uninitialised account.
+ *
+ * An open ladder carries its `rungCount`: the deposit's rungs are addressed by the numbers
+ * that follow it, whichever epochs they land in.
  */
 export type LadderState =
   | { readonly kind: 'unknown'; readonly reason: string }
   | { readonly kind: 'absent' }
-  | { readonly kind: 'open'; readonly rungEpochs: readonly PublicKey[] }
+  | { readonly kind: 'open'; readonly rungCount: number }
 
 export type DepositContext = {
   /** The connected wallet. `null` — not connected. */
@@ -64,35 +62,6 @@ export type DepositAction =
       /** The account the funds leave from: the owner's ATA for the market's mint. */
       readonly sourceToken: PublicKey
     }
-
-const isoDate = (maturityTs: bigint): string =>
-  new Date(Number(maturityTs) * 1000).toISOString().slice(0, 10)
-
-/**
- * Whether one of the deposit's dates is already taken.
- *
- * A rung is addressed by the pair "ladder, epoch", so a second rung of the same
- * ladder in the same epoch cannot exist — there is nowhere for it to go. Onchain this
- * shows up as creating an account that already exists; here — as a date already in the ladder.
- */
-function occupiedMaturity(
-  plan: Plan,
-  market: PublicKey,
-  ladder: LadderState,
-  programId: PublicKey,
-): bigint | null {
-  if (ladder.kind !== 'open') return null
-
-  const taken = new Set(ladder.rungEpochs.map((epoch) => epoch.toBase58()))
-
-  for (const rung of plan.rungs) {
-    if (taken.has(epochAddress(programId, market, rung.epoch.maturityTs).toBase58())) {
-      return rung.epoch.maturityTs
-    }
-  }
-
-  return null
-}
 
 /**
  * The deposit instructions — or the reason there will be no signature.
@@ -124,17 +93,6 @@ export function depositAction(plan: Plan, context: DepositContext): DepositActio
     return { kind: 'blocked', reason: ladder.reason }
   }
 
-  const occupied = occupiedMaturity(plan, market.address, ladder, context.programId)
-  if (occupied !== null) {
-    return {
-      kind: 'blocked',
-      // The advice "open another ladder" would lead nowhere here: this build has a
-      // single ladder number (`FIRST_LADDER_SEED`), and the form does not open a
-      // second one. What remains is what the treasurer can actually do.
-      reason: `Your ladder already holds a rung maturing on ${isoDate(occupied)}. One ladder holds one rung per maturity — pick a horizon whose dates it does not cover yet.`,
-    }
-  }
-
   const sourceToken = associatedTokenAddress(owner, market.assetMint)
   const params = {
     owner,
@@ -147,14 +105,13 @@ export function depositAction(plan: Plan, context: DepositContext): DepositActio
     programId: context.programId,
   }
 
-  const opensLadder = ladder.kind === 'absent'
-
   return {
     kind: 'ready',
-    opensLadder,
+    opensLadder: ladder.kind === 'absent',
     sourceToken,
-    instructions: opensLadder
-      ? buildLadderSetup({ ...params, rollPolicy: context.rollPolicy })
-      : buildLadderDeposit(params),
+    instructions:
+      ladder.kind === 'open'
+        ? buildLadderDeposit({ ...params, firstRung: ladder.rungCount })
+        : buildLadderSetup({ ...params, rollPolicy: context.rollPolicy }),
   }
 }

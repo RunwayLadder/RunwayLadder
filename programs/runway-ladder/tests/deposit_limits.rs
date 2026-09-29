@@ -68,10 +68,10 @@ fn ladder_of(rungs: usize) -> (Env, Pubkey, Vec<i64>, common::svm::Instruction) 
 
     let ladder = env.ladder(owner, 0);
     env.expect_created(ladder);
-    for maturity in &maturities {
+    for (index, maturity) in (0u32..).zip(&maturities) {
         let epoch = env.epoch(*maturity);
         env.expect_created(epoch);
-        env.expect_created(env.rung(ladder, epoch));
+        env.expect_created(env.rung(ladder, index));
     }
 
     let amount = 1_000_000_000_000;
