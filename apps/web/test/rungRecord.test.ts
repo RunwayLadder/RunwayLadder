@@ -20,6 +20,7 @@ const market: Market = {
   source: { kind: 'deterministic', rateBps: 600 },
   feeBps: 25,
   minRungAmount: 10_000_000_000n,
+  latestMaturity: OPENED + 90n * DAY,
   bump: 254,
 }
 
@@ -149,6 +150,46 @@ describe('toRungRecords', () => {
     // There is no yield-holder step, and the note must not claim one.
     expect(record?.settlement?.note).toMatch(/protocol buffer/)
     expect(record?.settlement?.note).not.toMatch(/yield-holder/i)
+  })
+
+  it('a rolled rung names where the funds went, and that the treasury received nothing', () => {
+    const into = new PublicKey('QWmroo4YnnMqYW3cnxWkFdaTxGD3P7vMSzwMHGbUzwF')
+    const [record] = toRungRecords(
+      viewOf({ termDays: 30n, status: { kind: 'rolled', amount: 250_358_835_616n, into } }),
+      market,
+      6,
+      NOW,
+    )
+
+    expect(record?.status).toBe('Rolled')
+    expect(record?.settlement?.shortfall).toBe('0.00')
+    expect(record?.settlement?.note).toMatch(/QWmr…UzwF/)
+    expect(record?.settlement?.note).toMatch(/nothing was paid out/)
+  })
+
+  it('a rolled deficit keeps both numbers, as a redeemed one does (FR-011a)', () => {
+    const into = new PublicKey('QWmroo4YnnMqYW3cnxWkFdaTxGD3P7vMSzwMHGbUzwF')
+    const [record] = toRungRecords(
+      viewOf({
+        termDays: 30n,
+        status: {
+          kind: 'rolledWithDeficit',
+          amount: 250_047_900_000n,
+          promised: 250_358_835_616n,
+          into,
+        },
+      }),
+      market,
+      6,
+      NOW,
+    )
+
+    expect(record?.status).toBe('Rolled with deficit')
+    expect(record?.settlement).toMatchObject({
+      settled: '250,047.90',
+      shortfall: '310.93…',
+      payoutRatio: '99.88%',
+    })
   })
 
   it('a redemption in full has no deficit', () => {

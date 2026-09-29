@@ -50,4 +50,10 @@ pub mod runway_ladder {
     pub fn redeem_rung(ctx: Context<RedeemRung>) -> Result<()> {
         state::redeem_rung(ctx)
     }
+
+    /// Permissionless: the new rung goes into the same ladder, and the epoch is the market's
+    /// furthest (FR-013).
+    pub fn roll_rung(ctx: Context<RollRung>) -> Result<()> {
+        state::roll_rung(ctx)
+    }
 }

@@ -50,6 +50,11 @@ pub struct Market {
     /// rung is one whose yield is not eaten by the network fee for redemption,
     /// and the one who knows that is the market operator.
     pub min_rung_amount: u64,
+    /// The furthest maturity among the market's epochs — the only epoch `roll_rung` puts funds
+    /// into (FR-013). A running maximum kept by `create_epoch`, not the last one created: an
+    /// operator creating a shorter epoch afterwards must not pull every rolling ladder in with it.
+    /// Zero until the first epoch exists.
+    pub latest_maturity: i64,
     pub bump: u8,
 }
 
@@ -128,6 +133,7 @@ pub fn init_market(
     market.source = source;
     market.fee_bps = fee_bps;
     market.min_rung_amount = min_rung_amount;
+    market.latest_maturity = 0;
     market.bump = ctx.bumps.market;
 
     Ok(())

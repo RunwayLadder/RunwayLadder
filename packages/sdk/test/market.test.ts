@@ -202,6 +202,22 @@ describe('buildCreateEpoch', () => {
     expect(args.rate_bps).toBe(620)
   })
 
+  it('marks each account writable exactly as the program requires', () => {
+    // The keys are listed by hand, so nothing but this comparison notices when the program
+    // makes an account mutable — the market became one when it started to keep the roll target.
+    const instruction = buildCreateEpoch({
+      authority,
+      market,
+      maturityTs: 1_800_000_000n,
+      rateBps: 1,
+    })
+    const expected = idl.instructions
+      .find((ix) => ix.name === 'create_epoch')
+      ?.accounts.map((account) => 'writable' in account && account.writable === true)
+
+    expect(instruction.keys.map((key) => key.isWritable)).toEqual(expected)
+  })
+
   it('keeps a maturity before 1970 signed', () => {
     // The same sign as in the seeds: as unsigned the date would give different bytes, and the
     // epoch would land at an address the client will never find.

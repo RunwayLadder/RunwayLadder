@@ -43,6 +43,12 @@ function settledOf(status: LadderView['rungs'][number]['rung']['status']): bigin
       return status.amount
     case 'redeemedWithDeficit':
       return status.amount
+    // Nothing reached the treasury: the amount went to work again in a newer rung of the same
+    // ladder, which enters the projection under its own promise. Counting it here as well
+    // would put the same money on the chart twice.
+    case 'rolled':
+    case 'rolledWithDeficit':
+      return 0n
   }
 }
 

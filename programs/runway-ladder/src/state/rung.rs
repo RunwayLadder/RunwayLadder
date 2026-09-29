@@ -3,8 +3,8 @@ use anchor_spl::token::{Token, TokenAccount, Transfer};
 
 use crate::errors::LadderError;
 use crate::events::{LadderFunded, RungIssued, RungRedeemed};
-use crate::math::{fee, payout, promise, split, Distribution};
-use crate::state::{transfer_as_market, Epoch, EpochStatus, Ladder, Market};
+use crate::math::{fee, promise, split, Distribution};
+use crate::state::{transfer_as_market, Epoch, Ladder, Market};
 
 /// What happened to the rung. A union rather than a sum of boolean flags: the variant
 /// "redeemed for less than promised, unmarked" does not exist in the type, so a deficit cannot
@@ -24,6 +24,14 @@ pub enum RungStatus {
     RedeemedWithDeficit { amount: u64, promised: u64 },
     /// Early exit at a discounted value (FR-016).
     Exited { amount: u64 },
+    /// Rolled by the crank into a new rung of the same ladder (FR-013): `amount` never left the
+    /// protocol, it went to work again in `into`. Not a kind of `Redeemed` — the treasury received
+    /// nothing, and a history that read it as a payout would count the same money twice.
+    Rolled { amount: u64, into: Pubkey },
+    /// Rolled after the epoch settled below its promise: the new rung was issued from what the
+    /// rung actually received, and the shortfall stays visible here rather than disappearing into
+    /// a fresh promise.
+    RolledWithDeficit { amount: u64, promised: u64, into: Pubkey },
 }
 
 /// A rung: one date, one fixed promise.
@@ -203,21 +211,9 @@ pub fn ladder_deposit<'info>(
         });
 
         // Epoch accumulators: the payout ratio is computed once per epoch, and without
-        // these sums there would be nothing to compute it from.
-        epoch.total_deposited =
-            epoch.total_deposited.checked_add(working).ok_or(LadderError::MathOverflow)?;
-        epoch.total_promised =
-            epoch.total_promised.checked_add(promised).ok_or(LadderError::MathOverflow)?;
-
-        // The same product the promise above was computed from, kept instead of recomputed:
-        // it is the one thing `settle_epoch` cannot reconstruct later, because by then the
-        // moment this rung was issued is gone. `seconds` is positive — the maturity was
-        // checked to lie ahead — so the conversion cannot fail on a negative.
-        let rung_seconds = u128::from(working)
-            .checked_mul(u128::try_from(seconds).map_err(|_| LadderError::InvalidMaturity)?)
-            .ok_or(LadderError::MathOverflow)?;
-        epoch.deposit_seconds =
-            epoch.deposit_seconds.checked_add(rung_seconds).ok_or(LadderError::MathOverflow)?;
+        // these sums there would be nothing to compute it from. `seconds` is positive — the
+        // maturity was checked to lie ahead.
+        epoch.record_issue(working, promised, seconds)?;
         epoch.exit(&crate::ID)?;
     }
 
@@ -320,26 +316,11 @@ pub fn redeem_rung(ctx: Context<RedeemRung>) -> Result<()> {
 
     // One ratio for the whole epoch, read from its status: `EpochNotSettled` until the crank
     // has settled it, and the same numbers for every rung after that.
-    let ratio = ctx.accounts.epoch.payout_ratio()?;
     let promised = ctx.accounts.rung.promised;
-    let amount = payout(promised, ratio)?;
-
-    // `payout` rounds down, so the rungs of one epoch cannot add up past `paid`. The check is
-    // here anyway because the vault would not stop it: it holds every epoch's money, and an
-    // excess would be paid out of someone else's principal instead of failing.
-    let redeemed = ctx
-        .accounts
-        .epoch
-        .redeemed
-        .checked_add(amount)
-        .ok_or(LadderError::MathOverflow)?;
-    require!(redeemed <= ratio.paid, LadderError::EpochOverpaid);
-
-    let with_deficit = matches!(ctx.accounts.epoch.status, EpochStatus::SettledWithDeficit { .. });
+    let (amount, with_deficit) = ctx.accounts.epoch.take_payout(promised)?;
 
     // State first, then the funds: a failed transfer rolls the whole instruction back anyway,
     // and nothing below reads the fields written here.
-    ctx.accounts.epoch.redeemed = redeemed;
     ctx.accounts.rung.status = if with_deficit {
         RungStatus::RedeemedWithDeficit { amount, promised }
     } else {

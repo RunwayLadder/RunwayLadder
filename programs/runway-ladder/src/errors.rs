@@ -71,4 +71,10 @@ pub enum LadderError {
     /// of the market, so either would be paid out of another epoch's principal rather than fail.
     #[msg("Epoch would pay out more than it settled for — the epoch's accounting is inconsistent")]
     EpochOverpaid,
+
+    /// The crank chooses neither the date nor the rate: the target is fixed by the market. A
+    /// mismatch is an ordinary race rather than a broken client — the operator may create a
+    /// further epoch between the keeper reading the market and its transaction landing.
+    #[msg("Rolled funds go only into the market's furthest maturity date — pass that epoch")]
+    RollTargetNotLatest,
 }

@@ -10,7 +10,13 @@
 import type { LadderView, Market, RungStatus } from '@runway-ladder/sdk'
 import { formatAmount, formatAmountShown, formatBps } from '@/lib/amount'
 
-export type StatusLabel = 'Active' | 'Redeemed' | 'Redeemed with deficit' | 'Exited'
+export type StatusLabel =
+  | 'Active'
+  | 'Redeemed'
+  | 'Redeemed with deficit'
+  | 'Exited'
+  | 'Rolled'
+  | 'Rolled with deficit'
 
 export type Settlement = {
   readonly settled: string
@@ -87,6 +93,10 @@ function settlementOf(status: RungStatus, promised: bigint, decimals: number) {
     }
   }
 
+  if (status.kind === 'rolled' || status.kind === 'rolledWithDeficit') {
+    return rolledSettlement(status, promised, decimals)
+  }
+
   const settled = status.amount
   const owed = status.kind === 'redeemedWithDeficit' ? status.promised : promised
   const shortfall = owed > settled ? owed - settled : 0n
@@ -103,6 +113,34 @@ function settlementOf(status: RungStatus, promised: bigint, decimals: number) {
         status.kind === 'redeemedWithDeficit'
           ? 'Base yield fell short. The protocol buffer covered what it could; the remainder was settled pro rata across the epoch.'
           : 'Settled in full at the promised amount.',
+    },
+  }
+}
+
+/**
+ * A rolled rung paid the treasury nothing: its amount went into the rung named in the status.
+ * The shortfall is shown the same way as on a redemption — it is the same haircut, only the
+ * money went back to work instead of out.
+ */
+function rolledSettlement(
+  status: Extract<RungStatus, { kind: 'rolled' | 'rolledWithDeficit' }>,
+  promised: bigint,
+  decimals: number,
+) {
+  const owed = status.kind === 'rolledWithDeficit' ? status.promised : promised
+  const shortfall = owed > status.amount ? owed - status.amount : 0n
+  const into = shortAddress(status.into.toBase58())
+
+  return {
+    label: (status.kind === 'rolledWithDeficit' ? 'Rolled with deficit' : 'Rolled') as StatusLabel,
+    settlement: {
+      settled: formatAmountShown(status.amount, decimals),
+      shortfall: formatAmountShown(shortfall, decimals),
+      payoutRatio: ratio(status.amount, owed),
+      note:
+        status.kind === 'rolledWithDeficit'
+          ? `Base yield fell short, and what the rung received was rolled into rung ${into} at the furthest date.`
+          : `Rolled at par into rung ${into} at the furthest date — nothing was paid out to the treasury.`,
     },
   }
 }

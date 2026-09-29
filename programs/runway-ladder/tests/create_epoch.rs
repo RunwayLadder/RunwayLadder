@@ -3,7 +3,7 @@ use anchor_lang::AccountDeserialize;
 use mollusk_svm::result::Check;
 
 use runway_ladder::errors::LadderError;
-use runway_ladder::state::{Epoch, YieldSource};
+use runway_ladder::state::{Epoch, Market, YieldSource};
 
 mod common;
 use common::{anchor_error, key, Env, FUNDED, NOW};
@@ -98,4 +98,28 @@ fn rejects_a_signer_who_is_not_the_market_operator() {
         ],
         &env.accounts,
     );
+}
+
+#[test]
+fn the_markets_furthest_maturity_only_moves_forward() {
+    // A shorter epoch opened after a longer one does not become the roll target: otherwise one
+    // `create_epoch` would pull every rolling ladder into a nearer date.
+    let (far, near) = (NOW + 180 * DAY, NOW + 30 * DAY);
+    let (mut env, _) = env_with_epoch(near);
+    env.expect_created(env.epoch(far));
+    env.expect_created(env.epoch(NOW + 90 * DAY));
+
+    let result = env.mollusk.process_and_validate_instruction_chain(
+        &[
+            (&env.init_market(25), &[Check::success()]),
+            (&env.create_epoch(env.authority, near, 800), &[Check::success()]),
+            (&env.create_epoch(env.authority, far, 800), &[Check::success()]),
+            (&env.create_epoch(env.authority, NOW + 90 * DAY, 800), &[Check::success()]),
+        ],
+        &env.accounts,
+    );
+
+    let raw = &result.get_account(&key(env.market)).expect("market").data;
+    let market = Market::try_deserialize(&mut &raw[..]).expect("decodes as Market");
+    assert_eq!(market.latest_maturity, far);
 }

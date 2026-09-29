@@ -73,6 +73,22 @@ describe('toInflows', () => {
     expect(inflows.every((entry) => entry.promised === 250_358_835_616n)).toBe(true)
   })
 
+  /**
+   * SC-005: a rolled rung paid the treasury nothing — its amount lives on as a newer rung with
+   * its own promise. Charting it here as well would count the same money twice.
+   */
+  it('a rolled rung arrives as zero, whether at par or with a deficit', () => {
+    const into = new PublicKey('CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8')
+    const inflows = toInflows(
+      viewOf(
+        { kind: 'rolled', amount: 250_358_835_616n, into },
+        { kind: 'rolledWithDeficit', amount: 250_047_900_000n, promised: 250_358_835_616n, into },
+      ),
+    )
+
+    expect(inflows.map((entry) => entry.settled)).toEqual([0n, 0n])
+  })
+
   it('the maturity date is carried over as is', () => {
     const inflows = toInflows(viewOf({ kind: 'active' }))
 

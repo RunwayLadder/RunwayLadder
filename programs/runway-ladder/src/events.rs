@@ -81,6 +81,22 @@ pub struct RungRedeemed {
     pub redeemed_at: i64,
 }
 
+/// One rung rolled by the crank (FR-013, FR-015: where the funds went). The new rung has its own
+/// `RungIssued` in the same transaction; this event is the link between the two, and the only
+/// place the old rung's payout and the destination appear together.
+#[event]
+pub struct RungRolled {
+    pub ladder: Pubkey,
+    pub rung: Pubkey,
+    pub epoch: Pubkey,
+    /// The new rung the funds went into.
+    pub into: Pubkey,
+    pub promised: u64,
+    pub amount: u64,
+    pub with_deficit: bool,
+    pub rolled_at: i64,
+}
+
 /// The deposit summary. Rungs have events of their own, but the amount the treasurer
 /// signed and the amount the protocol kept belong to none of them individually —
 /// without this event they would have to be gathered by addition (FR-022).

@@ -14,6 +14,7 @@ type Fixture = {
     source_rate_bps: number
     fee_bps: number
     min_rung_amount: number
+    latest_maturity: number
     bump: number
   }
   ladder: {
@@ -52,6 +53,13 @@ type Fixture = {
     status: string
     bump: number
   }
+  rung_rolled_with_deficit: {
+    base64: string
+    status: string
+    amount: number
+    promised: number
+    into: string
+  }
   epoch_settled_with_deficit: {
     base64: string
     total_promised: number
@@ -78,6 +86,9 @@ describe('decodeMarket', () => {
     // The rung minimum is a u64: on the treasurer's screen it sits next to the deposit
     // amount, and a number here would start to differ from the chain on large assets.
     expect(market.minRungAmount).toBe(BigInt(fixture.market.min_rung_amount))
+    // Not 0: a market with no epochs holds 0, and a decoder that skipped the field would too.
+    expect(market.latestMaturity).toBe(BigInt(fixture.market.latest_maturity))
+    expect(market.latestMaturity).not.toBe(0n)
     expect(market.bump).toBe(fixture.market.bump)
   })
 
@@ -232,6 +243,19 @@ describe('decodeRung', () => {
     expect(rung.status.amount).toBe(BigInt(fixture.rung.settled_amount))
     expect(rung.status.promised).toBe(BigInt(fixture.rung.promised))
     expect(rung.status.amount).toBeLessThan(rung.status.promised)
+  })
+
+  it('keeps a rolled rung apart from a redeemed one, with where the funds went', () => {
+    // The treasury received nothing from a rolled rung: read as a redemption, the same money
+    // would be counted twice — once here and once as the new rung it went into.
+    const rolled = decodeRung(Buffer.from(fixture.rung_rolled_with_deficit.base64, 'base64'))
+
+    expect(rolled.status.kind).toBe(fixture.rung_rolled_with_deficit.status)
+    if (rolled.status.kind !== 'rolledWithDeficit') throw new Error('expected a rolled deficit')
+
+    expect(rolled.status.amount).toBe(BigInt(fixture.rung_rolled_with_deficit.amount))
+    expect(rolled.status.promised).toBe(BigInt(fixture.rung_rolled_with_deficit.promised))
+    expect(rolled.status.into.toBase58()).toBe(fixture.rung_rolled_with_deficit.into)
   })
 
   it('reads an account whose data is longer than the value it holds', () => {

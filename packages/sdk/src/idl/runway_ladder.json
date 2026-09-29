@@ -29,7 +29,11 @@
           ]
         },
         {
-          "name": "market"
+          "name": "market",
+          "docs": [
+            "Mutable for `latest_maturity`, which a new epoch may move forward."
+          ],
+          "writable": true
         },
         {
           "name": "epoch",
@@ -490,6 +494,143 @@
       "args": []
     },
     {
+      "name": "roll_rung",
+      "docs": [
+        "Permissionless: the new rung goes into the same ladder, and the epoch is the market's",
+        "furthest (FR-013)."
+      ],
+      "discriminator": [
+        58,
+        86,
+        40,
+        10,
+        186,
+        25,
+        19,
+        152
+      ],
+      "accounts": [
+        {
+          "name": "payer",
+          "docs": [
+            "Whoever sends the crank. Pays the rent of the new rung and nothing else; who it is does",
+            "not matter to the program."
+          ],
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "market",
+          "relations": [
+            "ladder",
+            "epoch",
+            "target"
+          ]
+        },
+        {
+          "name": "ladder",
+          "docs": [
+            "Mutable for `rung_count`. No `has_one = owner`: the owner does not sign here, and the",
+            "policy on the ladder is the owner's standing permission."
+          ],
+          "writable": true
+        },
+        {
+          "name": "epoch",
+          "docs": [
+            "The epoch the rung matured in. Mutable for `redeemed`, which counts rolled funds exactly",
+            "as it counts redeemed ones."
+          ],
+          "writable": true,
+          "relations": [
+            "rung"
+          ]
+        },
+        {
+          "name": "rung",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  117,
+                  110,
+                  103
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "ladder"
+              },
+              {
+                "kind": "account",
+                "path": "rung.index",
+                "account": "Rung"
+              }
+            ]
+          }
+        },
+        {
+          "name": "target",
+          "docs": [
+            "The market's furthest epoch — the crank chooses neither the date nor the rate."
+          ],
+          "writable": true
+        },
+        {
+          "name": "new_rung",
+          "docs": [
+            "The ladder's next number, like any other rung it issues."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  117,
+                  110,
+                  103
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "ladder"
+              },
+              {
+                "kind": "account",
+                "path": "ladder.rung_count",
+                "account": "Ladder"
+              }
+            ]
+          }
+        },
+        {
+          "name": "vault",
+          "writable": true
+        },
+        {
+          "name": "buffer_vault",
+          "docs": [
+            "Where the issuance fee of the new rung goes — the only fee a roll takes (FR-024)."
+          ],
+          "writable": true
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "settle_epoch",
       "docs": [
         "Permissionless: no signer, no destination, no amount (FR-011)."
@@ -688,6 +829,19 @@
         9,
         229
       ]
+    },
+    {
+      "name": "RungRolled",
+      "discriminator": [
+        245,
+        105,
+        75,
+        144,
+        252,
+        154,
+        134,
+        190
+      ]
     }
   ],
   "errors": [
@@ -785,6 +939,11 @@
       "code": 6018,
       "name": "EpochOverpaid",
       "msg": "Epoch would pay out more than it settled for — the epoch's accounting is inconsistent"
+    },
+    {
+      "code": 6019,
+      "name": "RollTargetNotLatest",
+      "msg": "Rolled funds go only into the market's furthest maturity date — pass that epoch"
     }
   ],
   "types": [
@@ -1229,6 +1388,16 @@
             "type": "u64"
           },
           {
+            "name": "latest_maturity",
+            "docs": [
+              "The furthest maturity among the market's epochs — the only epoch `roll_rung` puts funds",
+              "into (FR-013). A running maximum kept by `create_epoch`, not the last one created: an",
+              "operator creating a shorter epoch afterwards must not pull every rolling ladder in with it.",
+              "Zero until the first epoch exists."
+            ],
+            "type": "i64"
+          },
+          {
             "name": "bump",
             "type": "u8"
           }
@@ -1414,6 +1583,54 @@
       }
     },
     {
+      "name": "RungRolled",
+      "docs": [
+        "One rung rolled by the crank (FR-013, FR-015: where the funds went). The new rung has its own",
+        "`RungIssued` in the same transaction; this event is the link between the two, and the only",
+        "place the old rung's payout and the destination appear together."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "ladder",
+            "type": "pubkey"
+          },
+          {
+            "name": "rung",
+            "type": "pubkey"
+          },
+          {
+            "name": "epoch",
+            "type": "pubkey"
+          },
+          {
+            "name": "into",
+            "docs": [
+              "The new rung the funds went into."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "promised",
+            "type": "u64"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "with_deficit",
+            "type": "bool"
+          },
+          {
+            "name": "rolled_at",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
       "name": "RungStatus",
       "docs": [
         "What happened to the rung. A union rather than a sum of boolean flags: the variant",
@@ -1458,6 +1675,36 @@
               {
                 "name": "amount",
                 "type": "u64"
+              }
+            ]
+          },
+          {
+            "name": "Rolled",
+            "fields": [
+              {
+                "name": "amount",
+                "type": "u64"
+              },
+              {
+                "name": "into",
+                "type": "pubkey"
+              }
+            ]
+          },
+          {
+            "name": "RolledWithDeficit",
+            "fields": [
+              {
+                "name": "amount",
+                "type": "u64"
+              },
+              {
+                "name": "promised",
+                "type": "u64"
+              },
+              {
+                "name": "into",
+                "type": "pubkey"
               }
             ]
           }

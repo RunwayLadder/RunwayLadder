@@ -3,7 +3,7 @@ use anchor_spl::token::{Token, TokenAccount};
 
 use crate::errors::LadderError;
 use crate::events::EpochSettled;
-use crate::math::{waterfall, EpochMaturity, PayoutRatio, Settlement};
+use crate::math::{payout, waterfall, EpochMaturity, PayoutRatio, Settlement};
 use crate::source;
 use crate::state::{transfer_as_market, Market};
 
@@ -80,6 +80,45 @@ impl Epoch {
 
         Ok(PayoutRatio { paid, promised: self.total_promised })
     }
+
+    /// What one rung promised `promised` takes out of this settled epoch, counted against `paid`.
+    /// Redemption and rolling both go through here, so whichever consumes the rung, the epoch's
+    /// running total is the same and never passes what it settled for.
+    ///
+    /// Returns the amount and whether the epoch settled with a deficit.
+    pub fn take_payout(&mut self, promised: u64) -> Result<(u64, bool)> {
+        let ratio = self.payout_ratio()?;
+        let amount = payout(promised, ratio)?;
+
+        // `payout` rounds down, so the rungs of one epoch cannot add up past `paid`. The check is
+        // here anyway because the vault would not stop it: it holds every epoch's money, and an
+        // excess would be paid out of someone else's principal instead of failing.
+        let redeemed = self.redeemed.checked_add(amount).ok_or(LadderError::MathOverflow)?;
+        require!(redeemed <= ratio.paid, LadderError::EpochOverpaid);
+        self.redeemed = redeemed;
+
+        Ok((amount, matches!(self.status, EpochStatus::SettledWithDeficit { .. })))
+    }
+
+    /// Adds one freshly issued rung to the epoch's accumulators. `seconds` is the span from
+    /// issuance to maturity the promise was computed over, and must be positive.
+    pub fn record_issue(&mut self, working: u64, promised: u64, seconds: i64) -> Result<()> {
+        self.total_deposited =
+            self.total_deposited.checked_add(working).ok_or(LadderError::MathOverflow)?;
+        self.total_promised =
+            self.total_promised.checked_add(promised).ok_or(LadderError::MathOverflow)?;
+
+        // The same product the promise was computed from, kept instead of recomputed: it is the
+        // one thing `settle_epoch` cannot reconstruct later, because by then the moment the rung
+        // was issued is gone.
+        let rung_seconds = u128::from(working)
+            .checked_mul(u128::try_from(seconds).map_err(|_| LadderError::InvalidMaturity)?)
+            .ok_or(LadderError::MathOverflow)?;
+        self.deposit_seconds =
+            self.deposit_seconds.checked_add(rung_seconds).ok_or(LadderError::MathOverflow)?;
+
+        Ok(())
+    }
 }
 
 #[derive(Accounts)]
@@ -88,7 +127,8 @@ pub struct CreateEpoch<'info> {
     #[account(mut)]
     pub authority: Signer<'info>,
 
-    #[account(has_one = authority @ LadderError::NotMarketAuthority)]
+    /// Mutable for `latest_maturity`, which a new epoch may move forward.
+    #[account(mut, has_one = authority @ LadderError::NotMarketAuthority)]
     pub market: Account<'info, Market>,
 
     #[account(
@@ -119,6 +159,9 @@ pub fn create_epoch(ctx: Context<CreateEpoch>, maturity_ts: i64, rate_bps: u16) 
     epoch.redeemed = 0;
     epoch.status = EpochStatus::Active;
     epoch.bump = ctx.bumps.epoch;
+
+    let market = &mut ctx.accounts.market;
+    market.latest_maturity = market.latest_maturity.max(maturity_ts);
 
     Ok(())
 }

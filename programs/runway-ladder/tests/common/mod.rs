@@ -400,6 +400,20 @@ impl Env {
         let mut data = vec![0u8; 8 + runway_ladder::state::Epoch::INIT_SPACE];
         epoch.try_serialize(&mut &mut data[..]).expect("serializes as Epoch");
 
+        // `create_epoch` keeps the market's furthest maturity; an epoch placed by hand must too,
+        // or the roll target would depend on how the stand was built. A market the stand does
+        // not hold yet has nothing to update.
+        if let Some(slot) = self
+            .accounts
+            .iter_mut()
+            .find(|(k, account)| *k == key(self.market) && !account.data.is_empty())
+        {
+            let mut market = runway_ladder::state::Market::try_deserialize(&mut &slot.1.data[..])
+                .expect("decodes as Market");
+            market.latest_maturity = market.latest_maturity.max(maturity_ts);
+            market.try_serialize(&mut &mut slot.1.data[..]).expect("serializes as Market");
+        }
+
         self.accounts.push((
             key(address),
             Account {
@@ -433,6 +447,8 @@ impl Env {
             source: self.source,
             fee_bps,
             min_rung_amount: self.min_rung_amount,
+            // Epochs seeded after the market move it forward — see `seed_settled_epoch`.
+            latest_maturity: 0,
             bump,
         };
 
@@ -576,6 +592,47 @@ impl Env {
             .to_account_metas(None),
             data: runway_ladder::instruction::RedeemRung {}.data(),
         })
+    }
+
+    /// The new rung takes the ladder's next number as the stand holds it — the address a keeper
+    /// would derive after reading the ladder. The payer and the target are given separately:
+    /// otherwise "a stranger cranks" and "the crank picks the epoch" cannot even be assembled.
+    pub fn roll_rung(
+        &self,
+        payer: Pubkey,
+        ladder: Pubkey,
+        epoch: Pubkey,
+        index: u32,
+        target: Pubkey,
+    ) -> svm::Instruction {
+        to_svm(Instruction {
+            program_id: runway_ladder::ID,
+            accounts: runway_ladder::accounts::RollRung {
+                payer,
+                market: self.market,
+                ladder,
+                epoch,
+                rung: self.rung(ladder, index),
+                target,
+                new_rung: self.rung(ladder, self.rung_count(ladder)),
+                vault: self.vault,
+                buffer_vault: self.buffer_vault,
+                token_program: spl_token::ID,
+                system_program: anchor_lang::system_program::ID,
+            }
+            .to_account_metas(None),
+            data: runway_ladder::instruction::RollRung {}.data(),
+        })
+    }
+
+    /// Reads a program account out of an instruction's result.
+    pub fn decode<T: AccountDeserialize>(
+        &self,
+        result: &mollusk_svm::result::InstructionResult,
+        address: Pubkey,
+    ) -> T {
+        let raw = &result.get_account(&key(address)).expect("account in the result").data;
+        T::try_deserialize(&mut &raw[..]).expect("decodes as the expected account")
     }
 
     /// A treasury wallet with an asset balance.

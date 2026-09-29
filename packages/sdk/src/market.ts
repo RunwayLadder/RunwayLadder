@@ -178,7 +178,8 @@ export function buildCreateEpoch(params: CreateEpochParams): TransactionInstruct
     programId,
     keys: [
       { pubkey: params.authority, isSigner: true, isWritable: true },
-      { pubkey: params.market, isSigner: false, isWritable: false },
+      // Writable: a new epoch may move the market's furthest maturity, the roll target.
+      { pubkey: params.market, isSigner: false, isWritable: true },
       {
         pubkey: epochAddress(programId, params.market, params.maturityTs),
         isSigner: false,

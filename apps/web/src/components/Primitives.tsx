@@ -71,6 +71,8 @@ const statusStyle: Record<StatusLabel, string> = {
   Redeemed: 'border-border text-muted-foreground',
   'Redeemed with deficit': 'border-[hsl(var(--caution))] text-[hsl(var(--caution))]',
   Exited: 'border-border text-muted-foreground',
+  Rolled: 'border-border text-muted-foreground',
+  'Rolled with deficit': 'border-[hsl(var(--caution))] text-[hsl(var(--caution))]',
 }
 
 export const StatusBadge = ({ status }: { status: StatusLabel }) => (

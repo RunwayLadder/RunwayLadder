@@ -40,6 +40,8 @@ const marketSchema = z
     source: z.object({ Deterministic: z.object({ rate_bps: rate }) }),
     fee_bps: bps,
     min_rung_amount: u64,
+    /** The furthest epoch's maturity — the only one a roll goes into; zero before any epoch. */
+    latest_maturity: u64,
     bump,
   })
   .transform((m) => ({
@@ -50,6 +52,7 @@ const marketSchema = z
     source: { kind: 'deterministic' as const, rateBps: m.source.Deterministic.rate_bps },
     feeBps: m.fee_bps,
     minRungAmount: m.min_rung_amount,
+    latestMaturity: m.latest_maturity,
     bump: m.bump,
   }))
 
@@ -129,6 +132,8 @@ const rungStatusSchema = z
     z.object({ Redeemed: z.object({ amount: u64 }) }),
     z.object({ RedeemedWithDeficit: z.object({ amount: u64, promised: u64 }) }),
     z.object({ Exited: z.object({ amount: u64 }) }),
+    z.object({ Rolled: z.object({ amount: u64, into: publicKey }) }),
+    z.object({ RolledWithDeficit: z.object({ amount: u64, promised: u64, into: publicKey }) }),
   ])
   .transform((s) => {
     if ('Redeemed' in s) return { kind: 'redeemed' as const, amount: s.Redeemed.amount }
@@ -140,6 +145,17 @@ const rungStatusSchema = z
       }
     }
     if ('Exited' in s) return { kind: 'exited' as const, amount: s.Exited.amount }
+    if ('Rolled' in s) {
+      return { kind: 'rolled' as const, amount: s.Rolled.amount, into: s.Rolled.into }
+    }
+    if ('RolledWithDeficit' in s) {
+      return {
+        kind: 'rolledWithDeficit' as const,
+        amount: s.RolledWithDeficit.amount,
+        promised: s.RolledWithDeficit.promised,
+        into: s.RolledWithDeficit.into,
+      }
+    }
 
     return { kind: 'active' as const }
   })

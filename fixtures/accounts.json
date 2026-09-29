@@ -1,7 +1,7 @@
 {
   "note": "Reference accounts, encoded independently of both implementations. Rust checks its serialisation against them, TypeScript its decoding. A discrepancy means the dashboard reads something other than what the program writes.",
   "market": {
-    "base64": "277VNwDjxpoBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBABYAhkAAOH1BQAAAAD+",
+    "base64": "277VNwDjxpoBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBABYAhkAAOH1BQAAAAAAIDdsAAAAAP4=",
     "authority": "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
     "asset_mint": "8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR",
     "vault": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
@@ -9,6 +9,7 @@
     "source_rate_bps": 600,
     "fee_bps": 25,
     "min_rung_amount": 100000000,
+    "latest_maturity": 1815552000,
     "bump": 254
   },
   "epoch": {
@@ -62,5 +63,12 @@
     "deficit": "101717671",
     "bump": 253,
     "redeemed": "457729520"
+  },
+  "rung_rolled_with_deficit": {
+    "base64": "s3lTrReo7gfyIbsZ0k16R+r84g8C1jSAC5kpfznytJ2INZXku0BwuktYb6lgdc5XApyd1JO9qKeSnOLycU1Kwk0p7fztp+yzAgAAABgp3Q4AAAAAojgoDwAAAABoiQkAAAAAAAWAsuYOAAAAAKI4KA8AAAAACgsMDQ4PEBESExQVFhcYGRobHB0eHyAhIiMkJSYnKCn8",
+    "status": "rolledWithDeficit",
+    "amount": 250000000,
+    "promised": 254294178,
+    "into": "gCr8XkSUeFUxTpZE8HrZMGC98XdGGVyakeocBNTDibJ"
   }
 }
