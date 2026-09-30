@@ -112,3 +112,13 @@ pub struct LadderFunded {
     pub withheld: u64,
     pub rungs: u32,
 }
+
+/// The treasurer changed the ladder's roll policy (FR-014). The account holds only the current
+/// value; `previous` is what the keeper and the history need to tell a change from a repeat.
+#[event]
+pub struct RollPolicySet {
+    pub ladder: Pubkey,
+    pub previous: RollPolicy,
+    pub roll_policy: RollPolicy,
+    pub set_at: i64,
+}

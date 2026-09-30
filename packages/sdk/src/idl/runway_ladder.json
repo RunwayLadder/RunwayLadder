@@ -631,6 +631,49 @@
       "args": []
     },
     {
+      "name": "set_roll_policy",
+      "docs": [
+        "The owner signs; rungs already issued keep their status and funds (FR-014)."
+      ],
+      "discriminator": [
+        148,
+        208,
+        233,
+        111,
+        220,
+        244,
+        197,
+        166
+      ],
+      "accounts": [
+        {
+          "name": "owner",
+          "docs": [
+            "As in `open_ladder`, `Signer` does not narrow the account type: a multisig safe signing",
+            "through CPI changes the policy the same way (FR-020a)."
+          ],
+          "signer": true,
+          "relations": [
+            "ladder"
+          ]
+        },
+        {
+          "name": "ladder",
+          "writable": true
+        }
+      ],
+      "args": [
+        {
+          "name": "roll_policy",
+          "type": {
+            "defined": {
+              "name": "RollPolicy"
+            }
+          }
+        }
+      ]
+    },
+    {
       "name": "settle_epoch",
       "docs": [
         "Permissionless: no signer, no destination, no amount (FR-011)."
@@ -802,6 +845,19 @@
         142,
         112,
         95
+      ]
+    },
+    {
+      "name": "RollPolicySet",
+      "discriminator": [
+        232,
+        62,
+        249,
+        18,
+        216,
+        18,
+        82,
+        84
       ]
     },
     {
@@ -1420,6 +1476,42 @@
           },
           {
             "name": "Roll"
+          }
+        ]
+      }
+    },
+    {
+      "name": "RollPolicySet",
+      "docs": [
+        "The treasurer changed the ladder's roll policy (FR-014). The account holds only the current",
+        "value; `previous` is what the keeper and the history need to tell a change from a repeat."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "ladder",
+            "type": "pubkey"
+          },
+          {
+            "name": "previous",
+            "type": {
+              "defined": {
+                "name": "RollPolicy"
+              }
+            }
+          },
+          {
+            "name": "roll_policy",
+            "type": {
+              "defined": {
+                "name": "RollPolicy"
+              }
+            }
+          },
+          {
+            "name": "set_at",
+            "type": "i64"
           }
         ]
       }

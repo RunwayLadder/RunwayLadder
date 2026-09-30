@@ -56,4 +56,9 @@ pub mod runway_ladder {
     pub fn roll_rung(ctx: Context<RollRung>) -> Result<()> {
         state::roll_rung(ctx)
     }
+
+    /// The owner signs; rungs already issued keep their status and funds (FR-014).
+    pub fn set_roll_policy(ctx: Context<SetRollPolicy>, roll_policy: RollPolicy) -> Result<()> {
+        state::set_roll_policy(ctx, roll_policy)
+    }
 }

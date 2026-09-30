@@ -125,6 +125,32 @@ export function buildOpenLadder(params: OpenLadderParams): TransactionInstructio
   })
 }
 
+export type SetRollPolicyParams = {
+  owner: PublicKey
+  /** The ladder's address as read from the network (`LadderView.address`), not re-derived. */
+  ladder: PublicKey
+  rollPolicy: RollPolicy
+  programId?: PublicKey
+}
+
+/**
+ * The treasurer turns rolling on or off (FR-014). Rungs already issued keep their status and
+ * funds; the policy decides only what the crank may do from now on, rungs already issued
+ * included.
+ */
+export function buildSetRollPolicy(params: SetRollPolicyParams): TransactionInstruction {
+  return new TransactionInstruction({
+    programId: params.programId ?? PROGRAM_ID,
+    keys: [
+      { pubkey: params.owner, isSigner: true, isWritable: false },
+      { pubkey: params.ladder, isSigner: false, isWritable: true },
+    ],
+    data: coder.encode('set_roll_policy', {
+      roll_policy: encodeRollPolicy(params.rollPolicy),
+    }),
+  })
+}
+
 /** A ladder opened by the same signature has issued nothing, so its first rung is number 0. */
 export type LadderSetupParams = Omit<LadderDepositParams, 'firstRung'> &
   Pick<OpenLadderParams, 'rollPolicy'>

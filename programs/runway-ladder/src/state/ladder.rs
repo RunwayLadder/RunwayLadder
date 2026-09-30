@@ -1,6 +1,7 @@
 use anchor_lang::prelude::*;
 
-use crate::events::LadderOpened;
+use crate::errors::LadderError;
+use crate::events::{LadderOpened, RollPolicySet};
 use crate::state::Market;
 
 /// What happens to the rung's funds once it is redeemed.
@@ -84,6 +85,41 @@ pub fn open_ladder(ctx: Context<OpenLadder>, seed: u64, roll_policy: RollPolicy)
         seed: ladder.seed,
         roll_policy: ladder.roll_policy,
         created_at: ladder.created_at,
+    });
+
+    Ok(())
+}
+
+/// The treasurer turns the crank's permission on or off (FR-014).
+///
+/// **Rungs already issued are not touched.** The instruction takes no rung: their status,
+/// promise and funds stay exactly as they were, and the owner redeems them as before. The
+/// policy is read at the moment of the roll, not copied into each rung at issue — so turning it
+/// off stops the crank on every rung of the ladder at once, which is what a treasurer who needs
+/// the money back is asking for, and turning it on again lets the crank reach them again.
+///
+/// Setting the value the ladder already has is not an error: two proposals of one multisig
+/// safe landing in turn are an ordinary race, and the ladder ends up where both wanted it.
+#[derive(Accounts)]
+pub struct SetRollPolicy<'info> {
+    /// As in `open_ladder`, `Signer` does not narrow the account type: a multisig safe signing
+    /// through CPI changes the policy the same way (FR-020a).
+    pub owner: Signer<'info>,
+
+    #[account(mut, has_one = owner @ LadderError::NotLadderOwner)]
+    pub ladder: Account<'info, Ladder>,
+}
+
+pub fn set_roll_policy(ctx: Context<SetRollPolicy>, roll_policy: RollPolicy) -> Result<()> {
+    let ladder = &mut ctx.accounts.ladder;
+    let previous = ladder.roll_policy;
+    ladder.roll_policy = roll_policy;
+
+    emit!(RollPolicySet {
+        ladder: ladder.key(),
+        previous,
+        roll_policy,
+        set_at: Clock::get()?.unix_timestamp,
     });
 
     Ok(())

@@ -15,6 +15,7 @@ import {
   buildLadderDeposit,
   buildLadderSetup,
   buildOpenLadder,
+  buildSetRollPolicy,
   fetchLadder,
   type LadderReader,
   MAX_RUNGS_PER_DEPOSIT,
@@ -180,6 +181,38 @@ describe('buildOpenLadder', () => {
     const args = decoded?.data as { roll_policy: unknown }
 
     expect(args.roll_policy).toEqual({ Roll: {} })
+  })
+})
+
+describe('buildSetRollPolicy', () => {
+  const ladder = ladderAddress(PROGRAM_ID, owner, seed)
+  const off = buildSetRollPolicy({ owner, ladder, rollPolicy: 'none' })
+
+  it('passes the owner and the ladder, flagged exactly as the program requires', () => {
+    // The keys are listed by hand, so only this comparison with the IDL notices when the
+    // program changes an account's flags.
+    const expected = idl.instructions
+      .find((ix) => ix.name === 'set_roll_policy')
+      ?.accounts.map((account) => ({
+        signer: 'signer' in account && account.signer === true,
+        writable: 'writable' in account && account.writable === true,
+      }))
+
+    expect(off.keys.map((k) => k.pubkey.toBase58())).toEqual([owner.toBase58(), ladder.toBase58()])
+    expect(off.keys.map((k) => ({ signer: k.isSigner, writable: k.isWritable }))).toEqual(expected)
+  })
+
+  it('encodes each policy as its own variant', () => {
+    // Switching off is what the treasurer does to get the money back; encoding it as `Roll`
+    // would keep the crank going on a ladder its owner stopped.
+    const on = buildSetRollPolicy({ owner, ladder, rollPolicy: 'roll' })
+    const coder = new BorshInstructionCoder(idl as Idl)
+
+    expect(coder.decode(off.data)).toMatchObject({
+      name: 'set_roll_policy',
+      data: { roll_policy: { None: {} } },
+    })
+    expect(coder.decode(on.data)).toMatchObject({ data: { roll_policy: { Roll: {} } } })
   })
 })
 

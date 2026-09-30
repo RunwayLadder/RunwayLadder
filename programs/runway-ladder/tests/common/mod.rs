@@ -625,6 +625,22 @@ impl Env {
         })
     }
 
+    /// The signer and the ladder are given separately: otherwise "a stranger changes the owner's
+    /// policy" cannot even be assembled.
+    pub fn set_roll_policy(
+        &self,
+        signer: Pubkey,
+        ladder: Pubkey,
+        policy: RollPolicy,
+    ) -> svm::Instruction {
+        to_svm(Instruction {
+            program_id: runway_ladder::ID,
+            accounts: runway_ladder::accounts::SetRollPolicy { owner: signer, ladder }
+                .to_account_metas(None),
+            data: runway_ladder::instruction::SetRollPolicy { roll_policy: policy }.data(),
+        })
+    }
+
     /// Reads a program account out of an instruction's result.
     pub fn decode<T: AccountDeserialize>(
         &self,
