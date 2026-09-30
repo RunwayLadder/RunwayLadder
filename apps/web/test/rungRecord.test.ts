@@ -42,7 +42,8 @@ const rung = (status: RungStatus): Rung => ({
   ladder: MARKET_ADDRESS,
   epoch: MARKET_ADDRESS,
   index: 0,
-  deposited: 250_000_000_000n,
+  // As the program writes it: net of the fee, the amount the promise is computed from.
+  deposited: 249_375_000_000n,
   promised: 250_358_835_616n,
   feePaid: 625_000_000n,
   status,
@@ -220,6 +221,7 @@ describe('toLadderTotals', () => {
       fee: '1,250.00',
       working: '498,750.00',
       guaranteed: '500,717.67…',
+      netGain: '717.67…',
       rungCount: 2,
     })
   })

@@ -7,7 +7,7 @@
  * invented operator. Here everything the screen shows arrives as one object.
  */
 
-import type { LadderView, Market, RungStatus } from '@runway-ladder/sdk'
+import type { LadderView, Market, Rung, RungStatus } from '@runway-ladder/sdk'
 import { formatAmount, formatAmountShown, formatBps } from '@/lib/amount'
 
 export type StatusLabel =
@@ -38,6 +38,7 @@ export type RungRecord = {
   readonly ratesSetAt: string
   /** FR-009b: the source is fixed when the ladder is created, the same for all rungs. */
   readonly yieldSource: string
+  /** What the treasury paid in — before the fee. */
   readonly deposited: string
   readonly fee: string
   readonly working: string
@@ -56,6 +57,12 @@ export type LadderTotals = {
 }
 
 const SECONDS_PER_DAY = 86_400n
+
+/**
+ * `Rung.deposited` is what went to work, already net of the fee. What the treasury paid
+ * is the two together — subtracting the fee from it once more would take it twice.
+ */
+const paidIn = (rung: Rung): bigint => rung.deposited + rung.feePaid
 
 const shortAddress = (address: string) => `${address.slice(0, 4)}…${address.slice(-4)}`
 
@@ -189,9 +196,9 @@ export function toRungRecords(
       operator: shortAddress(epoch.createdBy.toBase58()),
       ratesSetAt: isoStamp(epoch.createdAt),
       yieldSource: source,
-      deposited: formatAmountShown(rung.deposited, decimals),
+      deposited: formatAmountShown(paidIn(rung), decimals),
       fee: formatAmountShown(rung.feePaid, decimals),
-      working: formatAmountShown(rung.deposited - rung.feePaid, decimals),
+      working: formatAmountShown(rung.deposited, decimals),
       guaranteed: formatAmountShown(rung.promised, decimals),
       status: state.label,
       ...(state.settlement ? { settlement: state.settlement } : {}),
@@ -203,9 +210,9 @@ export function toRungRecords(
 export function toLadderTotals(view: LadderView, decimals: number): LadderTotals {
   const sums = view.rungs.reduce(
     (total, { rung }) => ({
-      deposited: total.deposited + rung.deposited,
+      deposited: total.deposited + paidIn(rung),
       fee: total.fee + rung.feePaid,
-      working: total.working + (rung.deposited - rung.feePaid),
+      working: total.working + rung.deposited,
       guaranteed: total.guaranteed + rung.promised,
     }),
     { deposited: 0n, fee: 0n, working: 0n, guaranteed: 0n },
