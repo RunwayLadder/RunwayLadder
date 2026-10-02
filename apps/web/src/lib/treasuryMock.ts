@@ -8,6 +8,7 @@
  * No network calls, no chain reads. This file is the only source of truth.
  */
 
+import type { HistoryRow } from '@/lib/history'
 import type { RungRecord, StatusLabel } from '@/lib/rungRecord'
 
 /** An alias, not a second copy of the union: they have no right to drift apart. */
@@ -256,3 +257,50 @@ export const prototypeDeficitRecord: RungRecord = {
   ratesSetAt: epoch.ratesSetAt,
   yieldSource: ladder.yieldSource,
 }
+
+/**
+ * The prototype history: one row per way a rung can leave the ladder, and one whose
+ * transaction the node no longer serves — so the empty cell has a look before it happens
+ * on the network.
+ */
+export const prototypeHistory: HistoryRow[] = [
+  {
+    key: 'proto-rolled',
+    rung: 4,
+    rungId: '8kQ2…Vt7a',
+    maturity: '2026-08-14',
+    outcome: 'Rolled',
+    promised: '251,612.40',
+    paid: '251,612.40',
+    shortfall: null,
+    when: { kind: 'known', text: '2026-08-14 00:03 UTC' },
+    where: { kind: 'known', text: 'Rolled into rung #9 · 3xRf…pQ2m' },
+    signature: '3mKp7sQd9ZbF1vR2uWx8YtNc4HgLeA6oJiP5yDkTqBnV',
+  },
+  {
+    key: 'proto-deficit',
+    rung: 2,
+    rungId: '5fH9…Lm2c',
+    maturity: '2026-07-31',
+    outcome: 'Redeemed with deficit',
+    promised: '250,973.22',
+    paid: '250,108.61',
+    shortfall: '864.61',
+    when: { kind: 'known', text: '2026-07-31 09:41 UTC' },
+    where: { kind: 'known', text: "Owner's account 7GqT…w4Ns" },
+    signature: '5vNq2TfLp8XcR3mKj6YdHs9BwE4uA1oZiG7tPbQyMnCr',
+  },
+  {
+    key: 'proto-unserved',
+    rung: 1,
+    rungId: '2aLw…Ze8d',
+    maturity: '2026-06-30',
+    outcome: 'Redeemed',
+    promised: '250,358.83',
+    paid: '250,358.83',
+    shortfall: null,
+    when: { kind: 'missing', reason: 'the node did not return the transaction' },
+    where: { kind: 'missing', reason: 'the node did not return the transaction' },
+    signature: null,
+  },
+]

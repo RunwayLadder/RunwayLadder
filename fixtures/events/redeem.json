@@ -1,0 +1,18 @@
+{
+  "programId": "HShAvvN6icFTUAs2hiKTHr7nGomyrcKz66wPB6CNhewe",
+  "ladder": "3p4fXJWwxCpDaZDrsuLKQ2Ltr7PSs16mpuxXknkeKtK7",
+  "rung": "GzNc5LcD4AXoWkTLzvpwYtn4gzp37sMEDkQz66pjgXpo",
+  "into": null,
+  "destination": "7eZ7VZnbnf4dTvWgroPfybwLpyZ3HKgc8W8pidvvdKhw",
+  "logs": [
+    "Program HShAvvN6icFTUAs2hiKTHr7nGomyrcKz66wPB6CNhewe invoke [1]",
+    "Program log: Instruction: RedeemRung",
+    "Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA invoke [2]",
+    "Program log: Instruction: Transfer",
+    "Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA consumed 4645 of 191941 compute units",
+    "Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA success",
+    "Program data: fbUdCzsGCeUpxdCilxaOAH8V79xwRqc7ZMg2QjjxJC41ZzzBIsg3Bu2R1qxcJiGyDKw3TxhYfpVeojHklavbfWyseVhaLgzkKuIlibkX3t4DCyBjxEorBjylHUi8dcG0ef8EWfsLRo5ixOurH/ZcyhuWFPVXDIXL+NpKuUJVCqkjZcnxxRJiXte7KTU6AAAA17spNToAAAAAKb2/agAAAAA=",
+    "Program HShAvvN6icFTUAs2hiKTHr7nGomyrcKz66wPB6CNhewe consumed 14888 of 200000 compute units",
+    "Program HShAvvN6icFTUAs2hiKTHr7nGomyrcKz66wPB6CNhewe success"
+  ]
+}

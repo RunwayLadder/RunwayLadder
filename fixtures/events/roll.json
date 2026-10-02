@@ -1,0 +1,17 @@
+{
+  "programId": "HShAvvN6icFTUAs2hiKTHr7nGomyrcKz66wPB6CNhewe",
+  "ladder": "3p4fXJWwxCpDaZDrsuLKQ2Ltr7PSs16mpuxXknkeKtK7",
+  "rung": "FfNu9NeDHfF6GzVSycVdLcWFUcBTZcxudh29nEYM3rEi",
+  "into": "B4g1QQ71a1eweV6e6VKRLGNWkDaZiTTyaByg6Ao1JaxV",
+  "destination": null,
+  "logs": [
+    "Program HShAvvN6icFTUAs2hiKTHr7nGomyrcKz66wPB6CNhewe invoke [1]",
+    "Program log: Instruction: RollRung",
+    "Program 11111111111111111111111111111111 invoke [2]",
+    "Program 11111111111111111111111111111111 success",
+    "Program data: 9WlLkPyahr4pxdCilxaOAH8V79xwRqc7ZMg2QjjxJC41ZzzBIsg3BtnYcvQpfGm3Pzl1O0nt51VTNpzUy7yRHWvV2i0rAYqvB+mpp3cjYapVqhG0sQkV5gY5NiTzQ9oNoi1l8+YMYMWVhbeNDAHEEFrFoEZCIJqwWgfZkxQAnCYfYX9AuA0xXsbJKTU6AAAAAEQpNToAAAABKb2/agAAAAA=",
+    "Program data: hcPu2nQI9AApxdCilxaOAH8V79xwRqc7ZMg2QjjxJC41ZzzBIsg3BpWFt40MAcQQWsWgRkIgmrBaB9mTFACcJh9hf0C4DTFeKrF374eLSKbU+nf/uRSeFOb6pO3N2DJIDNVMb4BohSlzDsFqAAAAAIQDAEQpNToAAAC8SdU4OgAAAAAAAAAAAAAA",
+    "Program HShAvvN6icFTUAs2hiKTHr7nGomyrcKz66wPB6CNhewe consumed 18292 of 200000 compute units",
+    "Program HShAvvN6icFTUAs2hiKTHr7nGomyrcKz66wPB6CNhewe success"
+  ]
+}

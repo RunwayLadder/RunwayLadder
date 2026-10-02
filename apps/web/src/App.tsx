@@ -5,15 +5,17 @@ import { liveNetwork } from '@/lib/network'
 import type { RungRecord } from '@/lib/rungRecord'
 import { activityLog, ladder, prototypeDeficitRecord, treasury } from '@/lib/treasuryMock'
 import { BuildLadder } from '@/views/BuildLadder'
+import { History } from '@/views/History'
 import { LadderDashboard } from '@/views/LadderDashboard'
 import { RungDetail } from '@/views/RungDetail'
 import { OwnerAddress, WalletCorner } from '@/wallet'
 
-type View = 'build' | 'dashboard' | 'detail'
+type View = 'build' | 'dashboard' | 'history' | 'detail'
 
 const NAV: { id: View; label: string }[] = [
   { id: 'build', label: 'Build ladder' },
   { id: 'dashboard', label: 'Ladder dashboard' },
+  { id: 'history', label: 'History' },
   { id: 'detail', label: 'Rung detail' },
 ]
 
@@ -79,6 +81,7 @@ const App = () => {
       <main className="mx-auto max-w-[1440px] px-4 py-5 md:px-6">
         {view === 'build' && <BuildLadder onConfirm={() => setView('dashboard')} />}
         {view === 'dashboard' && <LadderDashboard onOpenRung={openRung} />}
+        {view === 'history' && <History />}
         {view === 'detail' &&
           (selectedRung ? (
             <RungDetail

@@ -19,7 +19,8 @@
     "program:build": "bash scripts/program.sh build",
     "program:test": "bash scripts/program.sh test",
     "e2e:stand": "bash scripts/e2e-stand.sh",
-    "e2e:us1": "tsx scripts/e2e-us1.ts"
+    "e2e:us1": "tsx scripts/e2e-us1.ts",
+    "e2e:history": "tsx scripts/e2e-history.ts"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.9",

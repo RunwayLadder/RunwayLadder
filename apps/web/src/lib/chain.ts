@@ -7,11 +7,13 @@
  */
 
 import {
+  type ClosureLookup,
   type Epoch,
   fetchEpochs,
   fetchLadder,
   fetchMarket,
   fetchMintDecimals,
+  fetchRungClosure,
   LadderNotFoundError,
   type LadderView,
 } from '@runway-ladder/sdk'
@@ -133,6 +135,48 @@ export function useEpochs() {
             const views = await fetchEpochs(connection, market, live.programId)
 
             return views.map((view) => view.epoch)
+          }
+        : skipToken,
+  })
+}
+
+/**
+ * How each closed rung of the ladder was closed, keyed by the rung address (FR-015).
+ *
+ * Rungs are read one after another, not all at once: two requests per closed rung add up on a
+ * free RPC, and a burst of them is answered with 429 — every row would then lose its date to
+ * the rate limit rather than to the logs. A rung whose read fails gets the failure as its reason;
+ * it does not take the other rows down with it.
+ */
+export function useRungClosures(view: LadderView | null) {
+  const { connection } = useConnection()
+  const closed = view?.rungs.filter((entry) => entry.rung.status.kind !== 'active') ?? []
+
+  return useQuery({
+    queryKey: [
+      'history',
+      scope,
+      programId,
+      closed.map((entry) => entry.address.toBase58()).join(','),
+    ],
+    queryFn:
+      live && view
+        ? async (): Promise<ReadonlyMap<string, ClosureLookup>> => {
+            const lookups = new Map<string, ClosureLookup>()
+            for (const entry of closed) {
+              let lookup: ClosureLookup
+              try {
+                lookup = await fetchRungClosure(connection, entry.address, live.programId)
+              } catch (error) {
+                lookup = {
+                  kind: 'missing',
+                  reason: `the node could not be read: ${error instanceof Error ? error.message : String(error)}`,
+                }
+              }
+              lookups.set(entry.address.toBase58(), lookup)
+            }
+
+            return lookups
           }
         : skipToken,
   })

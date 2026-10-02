@@ -193,3 +193,40 @@ export function buildCreateEpoch(params: CreateEpochParams): TransactionInstruct
     }),
   })
 }
+
+export type SettleEpochParams = {
+  readonly market: PublicKey
+  /** The epoch's maturity date — the same one as in its seeds. */
+  readonly maturityTs: bigint
+  readonly programId?: PublicKey
+}
+
+/**
+ * Settling a matured epoch (FR-011). Permissionless: there is no signer among the accounts,
+ * so the fee payer of the transaction is whoever sends it — the keeper, the stand or the
+ * treasurer. Every account is a PDA of the market: the caller has nothing to choose.
+ */
+export function buildSettleEpoch(params: SettleEpochParams): TransactionInstruction {
+  const programId = params.programId ?? PROGRAM_ID
+
+  return new TransactionInstruction({
+    programId,
+    keys: [
+      { pubkey: params.market, isSigner: false, isWritable: false },
+      {
+        pubkey: epochAddress(programId, params.market, params.maturityTs),
+        isSigner: false,
+        isWritable: true,
+      },
+      { pubkey: vaultAddress(programId, params.market), isSigner: false, isWritable: true },
+      { pubkey: bufferVaultAddress(programId, params.market), isSigner: false, isWritable: true },
+      {
+        pubkey: sourceReserveAddress(programId, params.market),
+        isSigner: false,
+        isWritable: true,
+      },
+      { pubkey: utils.token.TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
+    ],
+    data: coder.encode('settle_epoch', {}),
+  })
+}
