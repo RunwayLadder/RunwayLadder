@@ -98,3 +98,16 @@ export const KeyValue = ({
     {helper && <p className="mt-1 text-xs text-muted-foreground">{helper}</p>}
   </div>
 )
+
+export const shortSignature = (signature: string) =>
+  `${signature.slice(0, 8)}…${signature.slice(-8)}`
+
+export const Caption = ({ children }: { children: ReactNode }) => (
+  <p className="mt-2 text-xs text-muted-foreground">{children}</p>
+)
+
+export const Caution = ({ children }: { children: ReactNode }) => (
+  <p className="mt-2 text-xs" style={{ color: 'hsl(var(--caution))' }}>
+    {children}
+  </p>
+)

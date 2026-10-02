@@ -8,6 +8,7 @@
  * what it would look like" are not the same thing.
  */
 
+import { Caption, Caution, shortSignature } from '@/components/Primitives'
 import { type LiveNetwork, liveNetwork } from '@/lib/network'
 import type { Plan } from '@/lib/plan'
 import { useDeposit } from '@/lib/useDeposit'
@@ -19,18 +20,6 @@ const PRIMARY = {
   backgroundColor: 'hsl(var(--primary))',
   color: 'hsl(var(--primary-foreground))',
 }
-
-const shortSignature = (signature: string) => `${signature.slice(0, 8)}…${signature.slice(-8)}`
-
-const Caption = ({ children }: { children: React.ReactNode }) => (
-  <p className="mt-2 text-xs text-muted-foreground">{children}</p>
-)
-
-const Caution = ({ children }: { children: React.ReactNode }) => (
-  <p className="mt-2 text-xs" style={{ color: 'hsl(var(--caution))' }}>
-    {children}
-  </p>
-)
 
 /**
  * Prototype: nothing is signed because there is no network. The button moves on to the

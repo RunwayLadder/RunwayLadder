@@ -1,13 +1,14 @@
 import { type CashflowForecast, projectCashflow } from '@runway-ladder/math'
 import { useWallet } from '@solana/wallet-adapter-react'
-import { useState } from 'react'
+import { type ReactNode, useState } from 'react'
 import { CashflowChart } from '@/components/CashflowChart'
 import { FIRST_LADDER_SEED } from '@/components/NetworkNotice'
-import { Panel, StatTile } from '@/components/Primitives'
+import { Caption, Caution, Panel, StatTile, shortSignature } from '@/components/Primitives'
 import { RungTable } from '@/components/RungTable'
 import { useLadder, useMarketParams } from '@/lib/chain'
 import { NO_FLOATING, PROTOTYPE_FLOATING, prototypeInflows, toInflows } from '@/lib/inflows'
 import { liveNetwork } from '@/lib/network'
+import type { RollPolicyAction } from '@/lib/rollPolicy'
 import {
   type LadderTotals,
   nextInflowOf,
@@ -23,22 +24,33 @@ import {
   prototypeRecords,
   rollPolicyCopy,
 } from '@/lib/treasuryMock'
+import { type RollPolicyStatus, useRollPolicy } from '@/lib/useRollPolicy'
 
 const NOW_SECONDS = BigInt(Math.floor(Date.now() / 1000))
 
 /**
- * The roll policy toggle is local for now: the program has no instruction that changes
- * `Ladder.roll_policy` after creation — it arrives in M2
- * together with the crank. Showing it as applied would be a promise the
- * chain does not keep.
+ * The roll policy switch. It only draws a position it is given: on the network that is
+ * `Ladder.roll_policy` as read, in the prototype a local value. `note` says what the
+ * switch is waiting for or why it cannot be used.
  */
-const RollPolicyRow = ({ value, onToggle }: { value: boolean; onToggle: () => void }) => (
+const RollPolicyRow = ({
+  value,
+  onToggle,
+  disabled = false,
+  note = null,
+}: {
+  value: boolean
+  onToggle: () => void
+  disabled?: boolean
+  note?: ReactNode
+}) => (
   <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-3">
     <div>
       <div className="label-caps">Roll policy</div>
       <p className="mt-1 text-sm text-muted-foreground">
         {value ? rollPolicyCopy.on : rollPolicyCopy.off}
       </p>
+      {note}
     </div>
     <button
       type="button"
@@ -46,7 +58,8 @@ const RollPolicyRow = ({ value, onToggle }: { value: boolean; onToggle: () => vo
       aria-checked={value}
       aria-label="Roll policy"
       onClick={onToggle}
-      className="inline-flex items-center gap-3"
+      disabled={disabled}
+      className="inline-flex items-center gap-3 disabled:cursor-not-allowed disabled:opacity-40"
     >
       <span className="text-sm">{value ? 'On' : 'Off'}</span>
       <span
@@ -75,6 +88,7 @@ const LadderPanels = ({
   symbol,
   decimals,
   forecast,
+  policy,
   onOpenRung,
 }: {
   title: string
@@ -85,9 +99,10 @@ const LadderPanels = ({
   symbol: string
   decimals: number
   forecast: CashflowForecast
+  /** The roll policy row: the prototype and the network fill it from different state. */
+  policy: ReactNode
   onOpenRung: (rung: RungRecord) => void
 }) => {
-  const [rollPolicy, setRollPolicy] = useState(false)
   const next = nextInflowOf(records)
 
   return (
@@ -112,7 +127,7 @@ const LadderPanels = ({
       </Panel>
 
       <Panel title={title} subtitle={subtitle}>
-        <RollPolicyRow value={rollPolicy} onToggle={() => setRollPolicy((current) => !current)} />
+        {policy}
 
         <RungTable
           rungs={records}
@@ -145,31 +160,67 @@ const Empty = ({ title, children }: { title: string; children: string }) => (
   </Panel>
 )
 
-const PrototypeDashboard = ({ onOpenRung }: { onOpenRung: (rung: RungRecord) => void }) => (
-  <LadderPanels
-    title={`Rungs · ${ladder.id}`}
-    subtitle={`Asset ${ladder.asset} · fee ${ladder.feeRate} (${ladder.feeBps}) · ${ladder.rungCount} rungs · ${ladder.distribution.toLowerCase()} split`}
-    records={prototypeRecords}
-    totals={{
-      deposited: ladderTotals.deposited,
-      fee: ladderTotals.fee,
-      working: ladderTotals.working,
-      guaranteed: ladderTotals.guaranteed,
-      netGain: ladderTotals.netGain,
-      rungCount: ladder.rungCount,
-    }}
-    source={prototypeMarket.source}
-    symbol={prototypeMarket.symbol}
-    decimals={prototypeMarket.decimals}
-    forecast={projectCashflow({
-      fromTs: Number(NOW_SECONDS),
-      months: 12,
-      rungs: prototypeInflows(Number(NOW_SECONDS)),
-      floating: PROTOTYPE_FLOATING,
-    })}
-    onOpenRung={onOpenRung}
-  />
-)
+const PrototypeDashboard = ({ onOpenRung }: { onOpenRung: (rung: RungRecord) => void }) => {
+  // Local on purpose: the prototype signs nothing, so there is no network to ask.
+  const [rollPolicy, setRollPolicy] = useState(false)
+
+  return (
+    <LadderPanels
+      title={`Rungs · ${ladder.id}`}
+      subtitle={`Asset ${ladder.asset} · fee ${ladder.feeRate} (${ladder.feeBps}) · ${ladder.rungCount} rungs · ${ladder.distribution.toLowerCase()} split`}
+      records={prototypeRecords}
+      totals={{
+        deposited: ladderTotals.deposited,
+        fee: ladderTotals.fee,
+        working: ladderTotals.working,
+        guaranteed: ladderTotals.guaranteed,
+        netGain: ladderTotals.netGain,
+        rungCount: ladder.rungCount,
+      }}
+      source={prototypeMarket.source}
+      symbol={prototypeMarket.symbol}
+      decimals={prototypeMarket.decimals}
+      forecast={projectCashflow({
+        fromTs: Number(NOW_SECONDS),
+        months: 12,
+        rungs: prototypeInflows(Number(NOW_SECONDS)),
+        floating: PROTOTYPE_FLOATING,
+      })}
+      policy={
+        <RollPolicyRow value={rollPolicy} onToggle={() => setRollPolicy((current) => !current)} />
+      }
+      onOpenRung={onOpenRung}
+    />
+  )
+}
+
+/** What the switch says under itself: progress, the refusal, or nothing. */
+const PolicyNote = ({
+  status,
+  action,
+}: {
+  status: RollPolicyStatus
+  action: RollPolicyAction | null
+}) => {
+  switch (status.kind) {
+    case 'signing':
+      return <Caption>Approve the transaction in your wallet…</Caption>
+    case 'confirming':
+      return (
+        <Caption>
+          Signed as{' '}
+          <span className="num" title={status.signature}>
+            {shortSignature(status.signature)}
+          </span>{' '}
+          — waiting for confirmation.
+        </Caption>
+      )
+    case 'failed':
+      return <Caution>The policy was not changed: {status.message}</Caution>
+    case 'idle':
+      return action?.kind === 'blocked' ? <Caution>{action.reason}</Caution> : null
+  }
+}
 
 /**
  * On the network the dashboard shows either what was read or the reason there is nothing to read.
@@ -180,6 +231,7 @@ const ChainDashboard = ({ onOpenRung }: { onOpenRung: (rung: RungRecord) => void
   const { publicKey } = useWallet()
   const market = useMarketParams()
   const ladderQuery = useLadder(publicKey ?? null, FIRST_LADDER_SEED)
+  const policy = useRollPolicy(ladderQuery.data ?? null)
 
   if (!publicKey) {
     return <Empty title="Ladder">Connect a wallet to read the ladder it owns.</Empty>
@@ -221,6 +273,14 @@ const ChainDashboard = ({ onOpenRung }: { onOpenRung: (rung: RungRecord) => void
         rungs: toInflows(view),
         floating: NO_FLOATING,
       })}
+      policy={
+        <RollPolicyRow
+          value={view.ladder.rollPolicy === 'roll'}
+          onToggle={() => void policy.toggle()}
+          disabled={policy.busy || policy.action?.kind !== 'ready'}
+          note={<PolicyNote status={policy.status} action={policy.action} />}
+        />
+      }
       onOpenRung={onOpenRung}
     />
   )
