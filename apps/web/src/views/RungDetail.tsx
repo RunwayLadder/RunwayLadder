@@ -3,7 +3,8 @@ import { type ReactNode, useState } from 'react'
 import { FIRST_LADDER_SEED } from '@/components/NetworkNotice'
 import { Amount, KeyValue, Panel, StatusBadge } from '@/components/Primitives'
 import { RedeemButton } from '@/components/RedeemButton'
-import { useLadder, useMarketParams } from '@/lib/chain'
+import { NO_PREVIEWS } from '@/lib/arrival'
+import { useLadder, useMarketParams, useSettlementPreviews } from '@/lib/chain'
 import { liveNetwork } from '@/lib/network'
 import { type RungRecord, toRungRecords } from '@/lib/rungRecord'
 import {
@@ -128,6 +129,31 @@ export const RungDetail = ({
                   <span className="num">{settlement.payoutRatio}</span>
                 </KeyValue>
               </>
+            ) : record.pendingDeficit ? (
+              // FR-011a: the rung is still open, but what it pays is already below the promise.
+              <>
+                <KeyValue
+                  label={
+                    record.pendingDeficit.final ? 'Arrives on redemption' : 'Arrives if settled now'
+                  }
+                >
+                  <div className="flex flex-wrap items-baseline gap-3">
+                    <Amount
+                      value={record.pendingDeficit.expected}
+                      className="text-2xl text-[hsl(var(--caution))]"
+                    />
+                    <span className="text-xs text-muted-foreground">
+                      Promised <Amount value={record.guaranteed} unit={null} />
+                    </span>
+                  </div>
+                </KeyValue>
+                <KeyValue label="Shortfall">
+                  <Amount
+                    value={record.pendingDeficit.shortfall}
+                    className="text-[hsl(var(--caution))]"
+                  />
+                </KeyValue>
+              </>
             ) : (
               <KeyValue label="Guaranteed at maturity">
                 <Amount value={record.guaranteed} className="text-2xl" />
@@ -196,10 +222,20 @@ const ChainRungDetail = ({ rungKey, onBack }: { rungKey: string; onBack: () => v
   const { publicKey } = useWallet()
   const market = useMarketParams()
   const ladderQuery = useLadder(publicKey ?? null, FIRST_LADDER_SEED)
+  const nowSeconds = BigInt(Math.floor(Date.now() / 1000))
+  const previewQuery = useSettlementPreviews(
+    ladderQuery.data ?? null,
+    publicKey ?? null,
+    nowSeconds,
+  )
 
   if (!publicKey) return <Empty>Connect a wallet to read the rung it owns.</Empty>
   if (ladderQuery.isPending || market.isPending) {
     return <Empty>Reading the rung from the network…</Empty>
+  }
+  // As on the dashboard: the amount before the signature is the point of the page.
+  if (previewQuery.isLoading) {
+    return <Empty>Asking the program what the epoch settles for…</Empty>
   }
   if (ladderQuery.isError)
     return <Empty>{`The rung could not be read: ${ladderQuery.error}`}</Empty>
@@ -215,12 +251,8 @@ const ChainRungDetail = ({ rungKey, onBack }: { rungKey: string; onBack: () => v
   }
 
   const { decimals } = market.data
-  const records = toRungRecords(
-    view,
-    market.data.market,
-    decimals,
-    BigInt(Math.floor(Date.now() / 1000)),
-  )
+  const previews = previewQuery.data ?? NO_PREVIEWS
+  const records = toRungRecords(view, market.data.market, decimals, nowSeconds, previews)
   const record = records[position]
   if (!record) return <Empty>This rung is not in the ladder of the connected wallet.</Empty>
 
@@ -234,6 +266,7 @@ const ChainRungDetail = ({ rungKey, onBack }: { rungKey: string; onBack: () => v
           assetMint={market.data.market.assetMint}
           decimals={decimals}
           rungNumber={record.index}
+          previews={previews}
         />
       }
       onBack={onBack}

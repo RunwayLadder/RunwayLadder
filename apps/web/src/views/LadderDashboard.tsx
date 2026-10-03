@@ -5,7 +5,8 @@ import { CashflowChart } from '@/components/CashflowChart'
 import { FIRST_LADDER_SEED } from '@/components/NetworkNotice'
 import { Caption, Caution, Panel, StatTile, shortSignature } from '@/components/Primitives'
 import { RungTable } from '@/components/RungTable'
-import { useLadder, useMarketParams } from '@/lib/chain'
+import { NO_PREVIEWS, type SettlementPreviews } from '@/lib/arrival'
+import { useLadder, useMarketParams, useSettlementPreviews } from '@/lib/chain'
 import { NO_FLOATING, PROTOTYPE_FLOATING, prototypeInflows, toInflows } from '@/lib/inflows'
 import { liveNetwork } from '@/lib/network'
 import type { RollPolicyAction } from '@/lib/rollPolicy'
@@ -88,6 +89,7 @@ const LadderPanels = ({
   symbol,
   decimals,
   forecast,
+  forecastNote,
   policy,
   onOpenRung,
 }: {
@@ -99,6 +101,8 @@ const LadderPanels = ({
   symbol: string
   decimals: number
   forecast: CashflowForecast
+  /** How certain the chart's amounts are, when some of them are not final. */
+  forecastNote?: string | undefined
   /** The roll policy row: the prototype and the network fill it from different state. */
   policy: ReactNode
   onOpenRung: (rung: RungRecord) => void
@@ -108,14 +112,30 @@ const LadderPanels = ({
   return (
     <div className="space-y-4">
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <StatTile label="Guaranteed at maturity" value={totals.guaranteed} />
+        <StatTile
+          label="Guaranteed at maturity"
+          value={totals.guaranteed}
+          {...(totals.shortfall
+            ? {
+                meta: `promised ${totals.shortfall.promised} · deficit ${totals.shortfall.deficit}`,
+                caution: true,
+              }
+            : {})}
+        />
         <StatTile label="Laddered" value={totals.deposited} meta={`${totals.rungCount} rungs`} />
         <StatTile label="Net gain" value={totals.netGain} meta={`fee ${totals.fee} paid`} />
         <StatTile
           label="Next inflow"
-          value={next?.guaranteed ?? '—'}
+          value={next ? (next.pendingDeficit?.expected ?? next.guaranteed) : '—'}
           unit={next ? symbol : null}
-          meta={next ? `on ${next.maturity}` : 'no rung is still active'}
+          meta={
+            next
+              ? next.pendingDeficit
+                ? `matured ${next.maturity} · ${next.pendingDeficit.shortfall} short of the promise`
+                : `on ${next.maturity}`
+              : 'no rung is still active'
+          }
+          caution={Boolean(next?.pendingDeficit)}
         />
       </div>
 
@@ -123,7 +143,12 @@ const LadderPanels = ({
         title="Inflow schedule"
         subtitle="Twelve months ahead · guaranteed versus floating estimate"
       >
-        <CashflowChart forecast={forecast} decimals={decimals} symbol={symbol} />
+        <CashflowChart
+          forecast={forecast}
+          decimals={decimals}
+          symbol={symbol}
+          {...(forecastNote ? { caption: forecastNote } : {})}
+        />
       </Panel>
 
       <Panel title={title} subtitle={subtitle}>
@@ -176,6 +201,8 @@ const PrototypeDashboard = ({ onOpenRung }: { onOpenRung: (rung: RungRecord) => 
         guaranteed: ladderTotals.guaranteed,
         netGain: ladderTotals.netGain,
         rungCount: ladder.rungCount,
+        // A fresh ladder: nothing has matured, so nothing can fall short yet.
+        shortfall: null,
       }}
       source={prototypeMarket.source}
       symbol={prototypeMarket.symbol}
@@ -223,6 +250,33 @@ const PolicyNote = ({
 }
 
 /**
+ * What the chart cannot say with bars: which amounts are not final yet, and which matured epochs
+ * could not be asked at all — those show the promise, and the treasurer should know why.
+ */
+function forecastNoteOf(
+  records: readonly RungRecord[],
+  previews: SettlementPreviews,
+): string | undefined {
+  const notes: string[] = []
+  if (records.some((record) => record.pendingDeficit && !record.pendingDeficit.final)) {
+    notes.push(
+      'Matured rungs of an unsettled epoch show what the program would settle it for now — a top-up of the yield source reserve before settlement can still raise it.',
+    )
+  }
+
+  const failed = [...previews.values()].flatMap((preview) =>
+    preview.kind === 'failed' ? [preview.reason] : [],
+  )
+  if (failed.length > 0) {
+    notes.push(
+      `${failed.length} matured epoch${failed.length === 1 ? '' : 's'} could not be previewed, so ${failed.length === 1 ? 'its rungs show' : 'their rungs show'} the promise: ${failed.join('; ')}.`,
+    )
+  }
+
+  return notes.length > 0 ? notes.join(' ') : undefined
+}
+
+/**
  * On the network the dashboard shows either what was read or the reason there is nothing to read.
  * There are no prototype numbers here in any state: putting them under a connected
  * wallet would mean showing the treasurer someone else's ladder as theirs.
@@ -232,6 +286,11 @@ const ChainDashboard = ({ onOpenRung }: { onOpenRung: (rung: RungRecord) => void
   const market = useMarketParams()
   const ladderQuery = useLadder(publicKey ?? null, FIRST_LADDER_SEED)
   const policy = useRollPolicy(ladderQuery.data ?? null)
+  const previewQuery = useSettlementPreviews(
+    ladderQuery.data ?? null,
+    publicKey ?? null,
+    NOW_SECONDS,
+  )
 
   if (!publicKey) {
     return <Empty title="Ladder">Connect a wallet to read the ladder it owns.</Empty>
@@ -241,6 +300,11 @@ const ChainDashboard = ({ onOpenRung }: { onOpenRung: (rung: RungRecord) => void
   }
   if (ladderQuery.isPending || market.isPending) {
     return <Empty title="Ladder">Reading the ladder from the network…</Empty>
+  }
+  // Waited for rather than filled in later: until it arrives, a matured rung would show its
+  // promise as if it were what arrives — the moment FR-011a is about.
+  if (previewQuery.isLoading) {
+    return <Empty title="Ladder">Asking the program what the matured epochs settle for…</Empty>
   }
   if (ladderQuery.isError) {
     return <Empty title="Ladder">{`The ladder could not be read: ${ladderQuery.error}`}</Empty>
@@ -254,14 +318,15 @@ const ChainDashboard = ({ onOpenRung }: { onOpenRung: (rung: RungRecord) => void
 
   const view = ladderQuery.data
   const { decimals } = market.data
-  const records = toRungRecords(view, market.data.market, decimals, NOW_SECONDS)
+  const previews = previewQuery.data ?? NO_PREVIEWS
+  const records = toRungRecords(view, market.data.market, decimals, NOW_SECONDS, previews)
 
   return (
     <LadderPanels
       title={`Rungs · ${view.address.toBase58().slice(0, 4)}…${view.address.toBase58().slice(-4)}`}
       subtitle={`Read from chain · ${records.length} rungs · roll policy ${view.ladder.rollPolicy}`}
       records={records}
-      totals={toLadderTotals(view, decimals)}
+      totals={toLadderTotals(view, decimals, previews)}
       source={sourceLabel(market.data.market)}
       symbol={`${market.data.market.assetMint.toBase58().slice(0, 4)}…${market.data.market.assetMint.toBase58().slice(-4)}`}
       decimals={decimals}
@@ -270,9 +335,10 @@ const ChainDashboard = ({ onOpenRung }: { onOpenRung: (rung: RungRecord) => void
       forecast={projectCashflow({
         fromTs: Number(NOW_SECONDS),
         months: 12,
-        rungs: toInflows(view),
+        rungs: toInflows(view, previews, Number(NOW_SECONDS)),
         floating: NO_FLOATING,
       })}
+      forecastNote={forecastNoteOf(records, previews)}
       policy={
         <RollPolicyRow
           value={view.ladder.rollPolicy === 'roll'}

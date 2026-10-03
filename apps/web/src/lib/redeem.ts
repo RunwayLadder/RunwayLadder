@@ -6,7 +6,6 @@
  * here and covered by a test without a wallet.
  */
 
-import { payout } from '@runway-ladder/math'
 import {
   associatedTokenAddress,
   buildCreateAssociatedTokenIdempotent,
@@ -16,15 +15,18 @@ import {
   type RungView,
 } from '@runway-ladder/sdk'
 import type { PublicKey, TransactionInstruction } from '@solana/web3.js'
+import { arrivalOf, type SettlementPreviews } from '@/lib/arrival'
 
 /**
- * What the treasurer receives. Exact once the epoch is settled; before that the settlement
- * in the same signature decides it, and the screen says so instead of promising the full
- * amount — a shortfall would be marked on the rung, but it would not be the number shown here.
+ * What the treasurer receives. Exact once the epoch is settled. Before that the settlement in
+ * the same signature decides it: `ifSettledNow` is the program's answer for the chain as it is
+ * (FR-011a — a shortfall is shown before the signature, not found after it), and
+ * `atSettlement` is what is left when that answer could not be had — the promise, and why.
  */
 export type RedeemOutcome =
   | { readonly kind: 'exact'; readonly amount: bigint; readonly promised: bigint }
-  | { readonly kind: 'atSettlement'; readonly promised: bigint }
+  | { readonly kind: 'ifSettledNow'; readonly amount: bigint; readonly promised: bigint }
+  | { readonly kind: 'atSettlement'; readonly promised: bigint; readonly reason?: string }
 
 export type RedeemAction =
   | { readonly kind: 'blocked'; readonly reason: string }
@@ -48,6 +50,8 @@ export type RedeemContext = {
   readonly assetMint: PublicKey
   readonly nowSeconds: bigint
   readonly programId: PublicKey
+  /** What the matured, unsettled epochs would settle for now — see `lib/arrival.ts`. */
+  readonly previews: SettlementPreviews
 }
 
 const isoDate = (seconds: bigint): string =>
@@ -82,17 +86,7 @@ export function redeemAction(context: RedeemContext): RedeemAction {
 
   const destination = associatedTokenAddress(owner, context.assetMint)
   const settlesEpoch = epoch.status.kind === 'active'
-  const outcome: RedeemOutcome =
-    epoch.status.kind === 'active'
-      ? { kind: 'atSettlement', promised: rung.promised }
-      : {
-          kind: 'exact',
-          amount: payout(rung.promised, {
-            paid: epoch.status.paid,
-            promised: epoch.totalPromised,
-          }),
-          promised: rung.promised,
-        }
+  const outcome = outcomeOf(entry, context.previews)
 
   const instructions = [
     buildCreateAssociatedTokenIdempotent({ payer: owner, owner, mint: context.assetMint }),
@@ -111,4 +105,20 @@ export function redeemAction(context: RedeemContext): RedeemAction {
   ]
 
   return { kind: 'ready', instructions, settlesEpoch, destination, outcome }
+}
+
+/** The rung's arrival in the words of the button. An open rung always has one. */
+function outcomeOf(entry: RungView, previews: SettlementPreviews): RedeemOutcome {
+  const arrival = arrivalOf(entry, previews) ?? { kind: 'promise', promised: entry.rung.promised }
+
+  switch (arrival.kind) {
+    case 'settled':
+      return { kind: 'exact', amount: arrival.amount, promised: arrival.promised }
+    case 'ifSettledNow':
+      return arrival
+    case 'promise':
+      return arrival.reason === undefined
+        ? { kind: 'atSettlement', promised: arrival.promised }
+        : { kind: 'atSettlement', promised: arrival.promised, reason: arrival.reason }
+  }
 }

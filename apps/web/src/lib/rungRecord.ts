@@ -9,9 +9,18 @@
 
 import type { LadderView, Market, Rung, RungStatus } from '@runway-ladder/sdk'
 import { formatAmount, formatAmountShown, formatBps } from '@/lib/amount'
+import {
+  type Arrival,
+  arrivalOf,
+  expectedOf,
+  isShort,
+  type SettlementPreviews,
+} from '@/lib/arrival'
 
 export type StatusLabel =
   | 'Active'
+  | 'Deficit · awaiting redemption'
+  | 'Deficit expected'
   | 'Redeemed'
   | 'Redeemed with deficit'
   | 'Exited'
@@ -23,6 +32,16 @@ export type Settlement = {
   readonly shortfall: string
   readonly payoutRatio: string
   readonly note: string
+}
+
+/**
+ * An open rung that will pay less than its promise (FR-011a) — shown on the row before the
+ * money arrives. `final` tells a settled epoch from the program's answer for settling it now.
+ */
+export type PendingDeficit = {
+  readonly expected: string
+  readonly shortfall: string
+  readonly final: boolean
 }
 
 export type RungRecord = {
@@ -50,6 +69,7 @@ export type RungRecord = {
   readonly guaranteed: string
   readonly status: StatusLabel
   readonly settlement?: Settlement
+  readonly pendingDeficit?: PendingDeficit
 }
 
 export type LadderTotals = {
@@ -59,6 +79,11 @@ export type LadderTotals = {
   readonly guaranteed: string
   readonly netGain: string
   readonly rungCount: number
+  /**
+   * What the rungs were promised, and how far below it `guaranteed` falls. `null` when nothing
+   * falls short — then `guaranteed` is the promise.
+   */
+  readonly shortfall: { readonly promised: string; readonly deficit: string } | null
 }
 
 const SECONDS_PER_DAY = 86_400n
@@ -164,6 +189,22 @@ function ratio(settled: bigint, promised: bigint): string {
   return `${((Number(settled) / Number(promised)) * 100).toFixed(2)}%`
 }
 
+/** The open rung's row when it pays less than promised; the label says how certain that is. */
+function pendingDeficitOf(arrival: Arrival, decimals: number) {
+  if (arrival.kind === 'promise' || !isShort(arrival)) return null
+
+  return {
+    label: (arrival.kind === 'settled'
+      ? 'Deficit · awaiting redemption'
+      : 'Deficit expected') as StatusLabel,
+    pendingDeficit: {
+      expected: formatAmountShown(arrival.amount, decimals),
+      shortfall: formatAmountShown(arrival.promised - arrival.amount, decimals),
+      final: arrival.kind === 'settled',
+    },
+  }
+}
+
 const countdown = (maturityTs: bigint, nowSeconds: bigint): string => {
   const seconds = maturityTs - nowSeconds
   if (seconds <= 0n) return `Matured ${isoDate(maturityTs)}`
@@ -182,6 +223,7 @@ export function toRungRecords(
   market: Market,
   decimals: number,
   nowSeconds: bigint,
+  previews: SettlementPreviews,
 ): RungRecord[] {
   const source = sourceLabel(market)
 
@@ -189,6 +231,8 @@ export function toRungRecords(
     const { epoch, rung } = entry
     const termSeconds = epoch.maturityTs - epoch.createdAt
     const state = settlementOf(rung.status, rung.promised, decimals)
+    const arrival = arrivalOf(entry, previews)
+    const pending = arrival ? pendingDeficitOf(arrival, decimals) : null
 
     return {
       key: entry.address.toBase58(),
@@ -206,22 +250,44 @@ export function toRungRecords(
       fee: formatAmountShown(rung.feePaid, decimals),
       working: formatAmountShown(rung.deposited, decimals),
       guaranteed: formatAmountShown(rung.promised, decimals),
-      status: state.label,
+      status: pending?.label ?? state.label,
       ...(state.settlement ? { settlement: state.settlement } : {}),
+      ...(pending ? { pendingDeficit: pending.pendingDeficit } : {}),
     }
   })
 }
 
-/** Ladder totals are computed from `bigint`s and formatted once at the end. */
-export function toLadderTotals(view: LadderView, decimals: number): LadderTotals {
+/**
+ * What a rung pays, or paid, the ladder: the settled amount of a closed rung, the expected one of
+ * an open rung. The promise only where nothing has decided otherwise yet.
+ */
+function paidOutOf(entry: LadderView['rungs'][number], previews: SettlementPreviews): bigint {
+  const arrival = arrivalOf(entry, previews)
+  if (arrival) return expectedOf(arrival)
+
+  const { status } = entry.rung
+
+  return status.kind === 'active' ? entry.rung.promised : status.amount
+}
+
+/**
+ * Ladder totals are computed from `bigint`s and formatted once at the end. `guaranteed` is what
+ * the rungs actually pay, so the tile, the table footer and the chart agree on one number.
+ */
+export function toLadderTotals(
+  view: LadderView,
+  decimals: number,
+  previews: SettlementPreviews,
+): LadderTotals {
   const sums = view.rungs.reduce(
-    (total, { rung }) => ({
-      deposited: total.deposited + paidIn(rung),
-      fee: total.fee + rung.feePaid,
-      working: total.working + rung.deposited,
-      guaranteed: total.guaranteed + rung.promised,
+    (total, entry) => ({
+      deposited: total.deposited + paidIn(entry.rung),
+      fee: total.fee + entry.rung.feePaid,
+      working: total.working + entry.rung.deposited,
+      guaranteed: total.guaranteed + paidOutOf(entry, previews),
+      promised: total.promised + entry.rung.promised,
     }),
-    { deposited: 0n, fee: 0n, working: 0n, guaranteed: 0n },
+    { deposited: 0n, fee: 0n, working: 0n, guaranteed: 0n, promised: 0n },
   )
 
   return {
@@ -231,10 +297,27 @@ export function toLadderTotals(view: LadderView, decimals: number): LadderTotals
     guaranteed: formatAmountShown(sums.guaranteed, decimals),
     netGain: formatAmountShown(sums.guaranteed - sums.deposited, decimals),
     rungCount: view.rungs.length,
+    shortfall:
+      sums.guaranteed < sums.promised
+        ? {
+            promised: formatAmountShown(sums.promised, decimals),
+            deficit: formatAmountShown(sums.promised - sums.guaranteed, decimals),
+          }
+        : null,
   }
 }
 
-/** The nearest inflow is the first rung that has not matured yet. */
+/**
+ * The nearest inflow is the first rung still open. A rung that will arrive short is open too —
+ * it is the nearest money coming, and the tile shows what it really brings.
+ */
 export function nextInflowOf(records: readonly RungRecord[]): RungRecord | null {
-  return records.find((record) => record.status === 'Active') ?? null
+  return (
+    records.find(
+      (record) =>
+        record.status === 'Active' ||
+        record.status === 'Deficit · awaiting redemption' ||
+        record.status === 'Deficit expected',
+    ) ?? null
+  )
 }

@@ -16,10 +16,12 @@ import {
   fetchRungClosure,
   LadderNotFoundError,
   type LadderView,
+  previewSettlement,
 } from '@runway-ladder/sdk'
 import { useConnection } from '@solana/wallet-adapter-react'
 import type { PublicKey } from '@solana/web3.js'
 import { QueryClient, skipToken, useQuery } from '@tanstack/react-query'
+import { epochsToPreview, type SettlementPreview, type SettlementPreviews } from '@/lib/arrival'
 import { liveNetwork } from '@/lib/network'
 
 /**
@@ -177,6 +179,56 @@ export function useRungClosures(view: LadderView | null) {
             }
 
             return lookups
+          }
+        : skipToken,
+  })
+}
+
+/**
+ * What each matured, unsettled epoch of the ladder would settle for now (FR-011a), keyed by the
+ * epoch address. One simulation per epoch, one after another for the same reason as the
+ * closures; a failed one becomes the reason in its entry and leaves the others standing.
+ */
+export function useSettlementPreviews(
+  view: LadderView | null,
+  payer: PublicKey | null,
+  nowSeconds: bigint,
+) {
+  const { connection } = useConnection()
+  const due = view ? epochsToPreview(view.rungs, nowSeconds) : []
+
+  return useQuery({
+    queryKey: [
+      'settlement',
+      scope,
+      programId,
+      payer?.toBase58() ?? null,
+      due.map((epoch) => epoch.key).join(','),
+    ],
+    queryFn:
+      live && view && payer && due.length > 0
+        ? async (): Promise<SettlementPreviews> => {
+            const previews = new Map<string, SettlementPreview>()
+            for (const epoch of due) {
+              let preview: SettlementPreview
+              try {
+                const status = await previewSettlement(connection, {
+                  market: view.ladder.market,
+                  maturityTs: epoch.maturityTs,
+                  feePayer: payer,
+                  programId: live.programId,
+                })
+                preview = { kind: 'previewed', status }
+              } catch (error) {
+                preview = {
+                  kind: 'failed',
+                  reason: error instanceof Error ? error.message : String(error),
+                }
+              }
+              previews.set(epoch.key, preview)
+            }
+
+            return previews
           }
         : skipToken,
   })

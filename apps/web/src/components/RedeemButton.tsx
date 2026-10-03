@@ -9,6 +9,7 @@ import type { LadderView, RungView } from '@runway-ladder/sdk'
 import type { PublicKey } from '@solana/web3.js'
 import { Amount, Caption, Caution, Panel, shortSignature } from '@/components/Primitives'
 import { formatAmountShown } from '@/lib/amount'
+import type { SettlementPreviews } from '@/lib/arrival'
 import type { RedeemOutcome } from '@/lib/redeem'
 import { useRedeem } from '@/lib/useRedeem'
 
@@ -21,9 +22,10 @@ const PRIMARY = {
 }
 
 /**
- * What the treasurer receives, said before the signature. Under a settled deficit both
- * numbers are shown, as on the rung itself; before settlement only the promise is known,
- * and the caption says the settlement decides the rest.
+ * What the treasurer receives, said before the signature. Under a deficit both numbers are
+ * shown, as on the rung itself. Before settlement the amount is the program's answer for
+ * settling now; only when that answer could not be had is the promise all there is, and the
+ * caption says the settlement decides the rest.
  */
 const OutcomeLine = ({ outcome, decimals }: { outcome: RedeemOutcome; decimals: number }) => {
   const promised = formatAmountShown(outcome.promised, decimals)
@@ -34,11 +36,27 @@ const OutcomeLine = ({ outcome, decimals }: { outcome: RedeemOutcome; decimals: 
         Promised <Amount value={promised} />. The epoch has not been settled yet, so this signature
         settles it first: if the base yield fell short, the rung is redeemed with a marked deficit,
         never silently.
+        {outcome.reason && ` What it settles for could not be previewed — ${outcome.reason}.`}
       </Caption>
     )
   }
 
   const amount = formatAmountShown(outcome.amount, decimals)
+
+  if (outcome.kind === 'ifSettledNow') {
+    return outcome.amount < outcome.promised ? (
+      <Caution>
+        This signature settles the epoch first, and as the chain stands now it settles short: you
+        receive <Amount value={amount} /> of the promised <Amount value={promised} />, and the
+        deficit is marked on the rung.
+      </Caution>
+    ) : (
+      <Caption>
+        This signature settles the epoch first; as the chain stands now, you receive{' '}
+        <Amount value={amount} /> — the full promised amount.
+      </Caption>
+    )
+  }
 
   return outcome.amount < outcome.promised ? (
     <Caution>
@@ -58,15 +76,17 @@ export const RedeemButton = ({
   assetMint,
   decimals,
   rungNumber,
+  previews,
 }: {
   view: LadderView
   entry: RungView
   assetMint: PublicKey
   decimals: number
+  previews: SettlementPreviews
   /** The rung's number as the dashboard table shows it. */
   rungNumber: number
 }) => {
-  const { action, status, busy, redeem } = useRedeem({ view, entry, assetMint })
+  const { action, status, busy, redeem } = useRedeem({ view, entry, assetMint, previews })
 
   // A closed rung shows its settlement above; the panel stays only to report the
   // signature that closed it.

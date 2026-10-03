@@ -51,23 +51,34 @@ export const StatTile = ({
   value,
   unit = 'USDC',
   meta,
+  caution = false,
 }: {
   label: string
   value: string
   unit?: string | null
   meta?: string
+  /** The meta line reports a shortfall: drawn in the deficit colour, as everywhere else. */
+  caution?: boolean
 }) => (
   <div className="panel px-4 py-3" style={{ backgroundColor: 'hsl(var(--surface-raised))' }}>
     <div className="label-caps">{label}</div>
     <div className="mt-1.5 text-lg">
       <Amount value={value} unit={unit} />
     </div>
-    {meta && <div className="mt-1 text-xs text-muted-foreground">{meta}</div>}
+    {meta && (
+      <div
+        className={`mt-1 text-xs ${caution ? 'text-[hsl(var(--caution))]' : 'text-muted-foreground'}`}
+      >
+        {meta}
+      </div>
+    )}
   </div>
 )
 
 const statusStyle: Record<StatusLabel, string> = {
   Active: 'border-border text-foreground',
+  'Deficit · awaiting redemption': 'border-[hsl(var(--caution))] text-[hsl(var(--caution))]',
+  'Deficit expected': 'border-dashed border-[hsl(var(--caution))] text-[hsl(var(--caution))]',
   Redeemed: 'border-border text-muted-foreground',
   'Redeemed with deficit': 'border-[hsl(var(--caution))] text-[hsl(var(--caution))]',
   Exited: 'border-border text-muted-foreground',

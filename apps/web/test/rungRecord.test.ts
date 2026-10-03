@@ -1,6 +1,7 @@
 import type { Epoch, LadderView, Market, Rung, RungStatus } from '@runway-ladder/sdk'
 import { PublicKey } from '@solana/web3.js'
 import { describe, expect, it } from 'vitest'
+import { NO_PREVIEWS, type SettlementPreview } from '../src/lib/arrival'
 import { nextInflowOf, sourceLabel, toLadderTotals, toRungRecords } from '../src/lib/rungRecord'
 
 const OWNER = new PublicKey('4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi')
@@ -75,6 +76,7 @@ describe('toRungRecords', () => {
       market,
       6,
       NOW,
+      NO_PREVIEWS,
     )
 
     expect(record).toMatchObject({
@@ -95,6 +97,7 @@ describe('toRungRecords', () => {
       market,
       6,
       NOW,
+      NO_PREVIEWS,
     )
 
     expect(record?.operator).toBe('QWmr…UzwF')
@@ -108,6 +111,7 @@ describe('toRungRecords', () => {
       market,
       6,
       NOW,
+      NO_PREVIEWS,
     )
 
     expect(record?.term).toBe('90 d')
@@ -120,6 +124,7 @@ describe('toRungRecords', () => {
       market,
       6,
       NOW,
+      NO_PREVIEWS,
     )
 
     expect(record?.countdown).toMatch(/^Matured /)
@@ -139,6 +144,7 @@ describe('toRungRecords', () => {
       market,
       6,
       NOW,
+      NO_PREVIEWS,
     )
 
     expect(record?.status).toBe('Redeemed with deficit')
@@ -160,6 +166,7 @@ describe('toRungRecords', () => {
       market,
       6,
       NOW,
+      NO_PREVIEWS,
     )
 
     expect(record?.status).toBe('Rolled')
@@ -183,6 +190,7 @@ describe('toRungRecords', () => {
       market,
       6,
       NOW,
+      NO_PREVIEWS,
     )
 
     expect(record?.status).toBe('Rolled with deficit')
@@ -199,6 +207,7 @@ describe('toRungRecords', () => {
       market,
       6,
       NOW,
+      NO_PREVIEWS,
     )
 
     expect(record?.status).toBe('Redeemed')
@@ -214,6 +223,7 @@ describe('toLadderTotals', () => {
         { termDays: 90n, status: { kind: 'active' } },
       ),
       6,
+      NO_PREVIEWS,
     )
 
     expect(totals).toMatchObject({
@@ -223,7 +233,99 @@ describe('toLadderTotals', () => {
       guaranteed: '500,717.67…',
       netGain: '717.67…',
       rungCount: 2,
+      shortfall: null,
     })
+  })
+})
+
+/** An open rung whose epoch promised exactly this rung — the ratio is then the rung's own. */
+const openIn = (status: Epoch['status'], termDays = 5n): LadderView => {
+  const view = viewOf({ termDays, status: { kind: 'active' } })
+
+  return {
+    ...view,
+    rungs: view.rungs.map((entry) => ({
+      ...entry,
+      epoch: { ...entry.epoch, totalPromised: entry.rung.promised, status },
+    })),
+  }
+}
+
+describe('a deficit before redemption (FR-011a)', () => {
+  const short = {
+    kind: 'settledWithDeficit' as const,
+    paid: 250_047_900_000n,
+    deficit: 310_935_616n,
+  }
+
+  it('the row of a short epoch shows what arrives, the shortfall and that it is final', () => {
+    const [record] = toRungRecords(openIn(short), market, 6, NOW, NO_PREVIEWS)
+
+    expect(record?.status).toBe('Deficit · awaiting redemption')
+    expect(record?.guaranteed).toBe('250,358.83…')
+    expect(record?.pendingDeficit).toEqual({
+      expected: '250,047.90',
+      shortfall: '310.93…',
+      final: true,
+    })
+  })
+
+  it('a shortfall from the settlement preview is marked as not final', () => {
+    const previews = new Map<string, SettlementPreview>([
+      [MARKET_ADDRESS.toBase58(), { kind: 'previewed', status: short }],
+    ])
+    const [record] = toRungRecords(openIn({ kind: 'active' }), market, 6, NOW, previews)
+
+    expect(record?.status).toBe('Deficit expected')
+    expect(record?.pendingDeficit?.final).toBe(false)
+  })
+
+  it('an epoch settled at par leaves the row as it was', () => {
+    const [record] = toRungRecords(
+      openIn({ kind: 'settled', paid: 250_358_835_616n }),
+      market,
+      6,
+      NOW,
+      NO_PREVIEWS,
+    )
+
+    expect(record?.status).toBe('Active')
+    expect(record?.pendingDeficit).toBeUndefined()
+  })
+
+  /** The tile, the table footer and the chart must agree: the total is what arrives. */
+  it('the totals count what arrives and name the promise and the deficit', () => {
+    const totals = toLadderTotals(openIn(short), 6, NO_PREVIEWS)
+
+    expect(totals).toMatchObject({
+      guaranteed: '250,047.90',
+      netGain: '47.90',
+      shortfall: { promised: '250,358.83…', deficit: '310.93…' },
+    })
+  })
+
+  it('a closed rung counts what it settled for, not its promise', () => {
+    const totals = toLadderTotals(
+      viewOf({
+        termDays: 5n,
+        status: {
+          kind: 'redeemedWithDeficit',
+          amount: 250_047_900_000n,
+          promised: 250_358_835_616n,
+        },
+      }),
+      6,
+      NO_PREVIEWS,
+    )
+
+    expect(totals.guaranteed).toBe('250,047.90')
+    expect(totals.shortfall?.deficit).toBe('310.93…')
+  })
+
+  it('the next inflow is the short rung, since it is still coming', () => {
+    const records = toRungRecords(openIn(short), market, 6, NOW, NO_PREVIEWS)
+
+    expect(nextInflowOf(records)?.pendingDeficit?.expected).toBe('250,047.90')
   })
 })
 
@@ -237,6 +339,7 @@ describe('nextInflowOf', () => {
       market,
       6,
       NOW,
+      NO_PREVIEWS,
     )
 
     expect(nextInflowOf(records)?.term).toBe('90 d')
@@ -248,6 +351,7 @@ describe('nextInflowOf', () => {
       market,
       6,
       NOW,
+      NO_PREVIEWS,
     )
 
     expect(nextInflowOf(records)).toBeNull()

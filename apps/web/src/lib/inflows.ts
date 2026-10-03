@@ -15,41 +15,40 @@ import {
   splitLadder,
 } from '@runway-ladder/math'
 import type { LadderView } from '@runway-ladder/sdk'
+import { arrivalOf, type SettlementPreviews } from '@/lib/arrival'
 import { prototypeMarket, publishedEpochs, treasury } from '@/lib/treasuryMock'
 
 const SECONDS_PER_DAY = 86_400
 
 /**
- * The ladder's rungs as inflows.
+ * The ladder's open rungs as inflows — what is still coming to the treasury.
  *
- * `settled` is what was actually paid out, and `null` is what says "epoch not settled yet".
- * A redeemed rung enters the projection with its real amount, not the promised one:
- * FR-011a requires the deficit to be visible before the treasurer receives it.
+ * A closed rung is not: a redeemed one has already arrived, and a rolled one lives on as a newer
+ * rung of the same ladder under its own promise, so charting it as well would count the same
+ * money twice.
+ *
+ * A matured rung that is not redeemed yet is due now, not on a past date: the window starts at
+ * `nowSeconds`, and a past date would push it out of the chart — together with the deficit
+ * FR-011a requires to be visible **before** the treasurer receives it. `settled` is whatever
+ * decides its amount: the settled epoch, or the program's own answer for settling it now.
  */
-export function toInflows(view: LadderView): RungInflow[] {
-  return view.rungs.map(({ rung, epoch }) => ({
-    maturityTs: Number(epoch.maturityTs),
-    promised: rung.promised,
-    settled: settledOf(rung.status),
-  }))
-}
+export function toInflows(
+  view: LadderView,
+  previews: SettlementPreviews,
+  nowSeconds: number,
+): RungInflow[] {
+  return view.rungs.flatMap((entry) => {
+    const arrival = arrivalOf(entry, previews)
+    if (!arrival) return []
 
-function settledOf(status: LadderView['rungs'][number]['rung']['status']): bigint | null {
-  switch (status.kind) {
-    case 'active':
-      return null
-    case 'redeemed':
-    case 'exited':
-      return status.amount
-    case 'redeemedWithDeficit':
-      return status.amount
-    // Nothing reached the treasury: the amount went to work again in a newer rung of the same
-    // ladder, which enters the projection under its own promise. Counting it here as well
-    // would put the same money on the chart twice.
-    case 'rolled':
-    case 'rolledWithDeficit':
-      return 0n
-  }
+    return [
+      {
+        maturityTs: Math.max(Number(entry.epoch.maturityTs), nowSeconds),
+        promised: arrival.promised,
+        settled: arrival.kind === 'promise' ? null : arrival.amount,
+      },
+    ]
+  })
 }
 
 /**

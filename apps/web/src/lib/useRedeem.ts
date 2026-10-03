@@ -11,6 +11,7 @@ import { useConnection, useWallet } from '@solana/wallet-adapter-react'
 import { type PublicKey, Transaction } from '@solana/web3.js'
 import { useQueryClient } from '@tanstack/react-query'
 import { useCallback, useState } from 'react'
+import type { SettlementPreviews } from '@/lib/arrival'
 import { liveNetwork } from '@/lib/network'
 import { type RedeemAction, redeemAction } from '@/lib/redeem'
 
@@ -27,10 +28,12 @@ export function useRedeem({
   view,
   entry,
   assetMint,
+  previews,
 }: {
   view: LadderView
   entry: RungView
   assetMint: PublicKey
+  previews: SettlementPreviews
 }) {
   const { connection } = useConnection()
   const { publicKey, sendTransaction } = useWallet()
@@ -49,6 +52,7 @@ export function useRedeem({
         assetMint,
         nowSeconds: BigInt(Math.floor(Date.now() / 1000)),
         programId: liveNetwork.programId,
+        previews,
       })
     : null
 
@@ -73,9 +77,11 @@ export function useRedeem({
       }
 
       // The history tab reads closed rungs; without this it would miss the one just closed.
+      // The settlement previews go too: the epoch this signature settled has nothing to preview.
       await Promise.all([
         queries.invalidateQueries({ queryKey: ['ladder'] }),
         queries.invalidateQueries({ queryKey: ['history'] }),
+        queries.invalidateQueries({ queryKey: ['settlement'] }),
       ])
       setStatus({ kind: 'done', signature })
     } catch (error) {

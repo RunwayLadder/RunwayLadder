@@ -75,7 +75,21 @@ export const RungTable = ({
                 <Amount value={rung.working} unit={null} />
               </td>
               <td className={tdNum}>
-                <Amount value={rung.guaranteed} unit={null} />
+                {rung.pendingDeficit ? (
+                  // FR-011a: what arrives first, the promise under it — both, so the gap can be checked.
+                  <>
+                    <Amount
+                      value={rung.pendingDeficit.expected}
+                      unit={null}
+                      className="text-[hsl(var(--caution))]"
+                    />
+                    <div className="mt-0.5 text-xs text-muted-foreground">
+                      of <Amount value={rung.guaranteed} unit={null} /> promised
+                    </div>
+                  </>
+                ) : (
+                  <Amount value={rung.guaranteed} unit={null} />
+                )}
               </td>
               <td className={td}>
                 <StatusBadge status={rung.status} />

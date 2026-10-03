@@ -10,6 +10,7 @@ import {
 } from '@runway-ladder/sdk'
 import { PublicKey } from '@solana/web3.js'
 import { describe, expect, it } from 'vitest'
+import { NO_PREVIEWS, type SettlementPreview } from '../src/lib/arrival'
 import { redeemAction } from '../src/lib/redeem'
 
 const owner = new PublicKey('9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM')
@@ -76,6 +77,7 @@ const context = (entry: RungView, overrides: Partial<Parameters<typeof redeemAct
   assetMint,
   nowSeconds: MATURITY + 60n,
   programId,
+  previews: NO_PREVIEWS,
   ...overrides,
 })
 
@@ -127,8 +129,50 @@ describe('redeemAction', () => {
     expect(action.instructions[1]).toEqual(
       buildSettleEpoch({ market, maturityTs: MATURITY, programId }),
     )
-    // Only the promise is known before settlement: the screen must not show it as the payout.
+    // Without a preview only the promise is known: the screen must not show it as the payout.
     expect(action.outcome).toEqual({ kind: 'atSettlement', promised: 100_000_000n })
+  })
+
+  /**
+   * FR-011a on the one-signature path: the settlement happens inside the redemption, so the
+   * program's answer for settling now is the only moment the treasurer can see a shortfall
+   * before receiving it.
+   */
+  it('shows what settling now pays for an unsettled epoch, at the epoch ratio', () => {
+    const previews = new Map<string, SettlementPreview>([
+      [
+        epochKey.toBase58(),
+        {
+          kind: 'previewed',
+          status: { kind: 'settledWithDeficit', paid: 240_000_000n, deficit: 60_000_000n },
+        },
+      ],
+    ])
+    const action = ready(
+      redeemAction(context(entryOf(rungOf(), epochOf({ kind: 'active' })), { previews })),
+    )
+
+    expect(action.settlesEpoch).toBe(true)
+    expect(action.outcome).toEqual({
+      kind: 'ifSettledNow',
+      amount: 80_000_000n,
+      promised: 100_000_000n,
+    })
+  })
+
+  it('says why the amount is unknown when the settlement could not be previewed', () => {
+    const previews = new Map<string, SettlementPreview>([
+      [epochKey.toBase58(), { kind: 'failed', reason: 'the node is down' }],
+    ])
+    const action = ready(
+      redeemAction(context(entryOf(rungOf(), epochOf({ kind: 'active' })), { previews })),
+    )
+
+    expect(action.outcome).toEqual({
+      kind: 'atSettlement',
+      promised: 100_000_000n,
+      reason: 'the node is down',
+    })
   })
 
   it('shows the epoch ratio, not the promise, for an epoch settled with a deficit', () => {
