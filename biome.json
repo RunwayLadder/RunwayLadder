@@ -8,6 +8,7 @@
       "!**/.turbo",
       "!**/target",
       "!**/.anchor",
+      "!**/.e2e",
       "!packages/sdk/src/idl"
     ]
   },
