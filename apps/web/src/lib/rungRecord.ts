@@ -26,6 +26,11 @@ export type Settlement = {
 }
 
 export type RungRecord = {
+  /**
+   * What identifies the rung across reads: on the network the full account address, elsewhere
+   * any id unique in its list. `id` is what the screen shows, and two rungs may share it.
+   */
+  readonly key: string
   readonly index: number
   readonly id: string
   readonly term: string
@@ -186,6 +191,7 @@ export function toRungRecords(
     const state = settlementOf(rung.status, rung.promised, decimals)
 
     return {
+      key: entry.address.toBase58(),
       index: index + 1,
       id: shortAddress(entry.address.toBase58()),
       term: `${termSeconds / SECONDS_PER_DAY} d`,

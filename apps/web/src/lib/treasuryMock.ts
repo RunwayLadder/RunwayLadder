@@ -245,6 +245,7 @@ export const builderDefaults = {
  */
 export const prototypeRecords: RungRecord[] = rungs.map((rung) => ({
   ...rung,
+  key: rung.id,
   operator: PROTOTYPE_OPERATOR,
   ratesSetAt: epoch.ratesSetAt,
   yieldSource: ladder.yieldSource,
@@ -253,6 +254,7 @@ export const prototypeRecords: RungRecord[] = rungs.map((rung) => ({
 /** The same second rung, shown as redeemed with a deficit. A preview of M2 state. */
 export const prototypeDeficitRecord: RungRecord = {
   ...rungTwoWithDeficit,
+  key: rungTwoWithDeficit.id,
   operator: PROTOTYPE_OPERATOR,
   ratesSetAt: epoch.ratesSetAt,
   yieldSource: ladder.yieldSource,

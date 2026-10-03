@@ -44,6 +44,7 @@ const isoStamp = (seconds: bigint): string =>
   `${new Date(Number(seconds) * 1000).toISOString().slice(0, 16).replace('T', ' ')} UTC`
 
 const toRow = (rung: PlanRung, decimals: number, source: string): RungRecord => ({
+  key: `plan-rung-${rung.index}`,
   index: rung.index,
   id: `plan-rung-${rung.index}`,
   term: `${rung.epoch.termDays} d`,

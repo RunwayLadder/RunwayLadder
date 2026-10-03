@@ -1,18 +1,30 @@
-import { useState } from 'react'
+import { useWallet } from '@solana/wallet-adapter-react'
+import { type ReactNode, useState } from 'react'
+import { FIRST_LADDER_SEED } from '@/components/NetworkNotice'
 import { Amount, KeyValue, Panel, StatusBadge } from '@/components/Primitives'
-import type { RungRecord } from '@/lib/rungRecord'
-import { type ActivityRow, epoch, ladder } from '@/lib/treasuryMock'
+import { RedeemButton } from '@/components/RedeemButton'
+import { useLadder, useMarketParams } from '@/lib/chain'
+import { liveNetwork } from '@/lib/network'
+import { type RungRecord, toRungRecords } from '@/lib/rungRecord'
+import {
+  type ActivityRow,
+  activityLog,
+  epoch,
+  ladder,
+  prototypeDeficitRecord,
+} from '@/lib/treasuryMock'
 
 type PreviewState = 'Active' | 'Redeemed with deficit'
 
 /**
- * `deficitPreview` exists only for the prototype: there is no redemption in M1 at all, and
- * the toggle on live data would show a state the rung has never been in.
+ * `deficitPreview` exists only for the prototype: a live rung shows the state it is in on
+ * chain, and the toggle would show one it has never been in.
  */
 export const RungDetail = ({
   rung,
   deficitPreview,
   activity,
+  action,
   onBack,
 }: {
   rung: RungRecord
@@ -21,6 +33,8 @@ export const RungDetail = ({
    *  captions under real numbers, so it arrives from outside rather than from here.
    *  Reading events from the network is separate work (FR-021, T041). */
   activity?: readonly ActivityRow[]
+  /** What the treasurer can do with the rung — on the network, the Redeem panel. */
+  action?: ReactNode
   onBack: () => void
 }) => {
   const [previewState, setPreviewState] = useState<PreviewState>('Active')
@@ -129,6 +143,8 @@ export const RungDetail = ({
         )}
       </Panel>
 
+      {action}
+
       {activity && (
         <Panel title="Activity" subtitle="Signatures shown as text records.">
           <div className="overflow-x-auto">
@@ -164,3 +180,82 @@ export const RungDetail = ({
     </div>
   )
 }
+
+const Empty = ({ children }: { children: string }) => (
+  <Panel title="Rung detail">
+    <p className="px-4 py-6 text-sm text-muted-foreground">{children}</p>
+  </Panel>
+)
+
+/**
+ * On the network the page shows the rung as read now, not the record it was opened with:
+ * a redemption closes the rung while the page is open, and a kept record would go on
+ * showing it as active. The rung is found again by its address after every read.
+ */
+const ChainRungDetail = ({ rungKey, onBack }: { rungKey: string; onBack: () => void }) => {
+  const { publicKey } = useWallet()
+  const market = useMarketParams()
+  const ladderQuery = useLadder(publicKey ?? null, FIRST_LADDER_SEED)
+
+  if (!publicKey) return <Empty>Connect a wallet to read the rung it owns.</Empty>
+  if (ladderQuery.isPending || market.isPending) {
+    return <Empty>Reading the rung from the network…</Empty>
+  }
+  if (ladderQuery.isError)
+    return <Empty>{`The rung could not be read: ${ladderQuery.error}`}</Empty>
+  if (market.isError || !market.data) {
+    return <Empty>The market could not be read, so amounts have no unit.</Empty>
+  }
+
+  const view = ladderQuery.data
+  const position = view?.rungs.findIndex((entry) => entry.address.toBase58() === rungKey) ?? -1
+  const entry = view?.rungs[position]
+  if (!view || !entry) {
+    return <Empty>This rung is not in the ladder of the connected wallet.</Empty>
+  }
+
+  const { decimals } = market.data
+  const records = toRungRecords(
+    view,
+    market.data.market,
+    decimals,
+    BigInt(Math.floor(Date.now() / 1000)),
+  )
+  const record = records[position]
+  if (!record) return <Empty>This rung is not in the ladder of the connected wallet.</Empty>
+
+  return (
+    <RungDetail
+      rung={record}
+      action={
+        <RedeemButton
+          view={view}
+          entry={entry}
+          assetMint={market.data.market.assetMint}
+          decimals={decimals}
+          rungNumber={record.index}
+        />
+      }
+      onBack={onBack}
+    />
+  )
+}
+
+/**
+ * The branch is stable across renders (`liveNetwork` is read once at load),
+ * so wallet hooks are never called where the providers are absent.
+ *
+ * The deficit preview and the activity log exist only for the prototype: on a live rung the
+ * toggle would show a state that never happened, and the log would be invented captions.
+ */
+export const RungDetailPage = ({ rung, onBack }: { rung: RungRecord; onBack: () => void }) =>
+  liveNetwork ? (
+    <ChainRungDetail rungKey={rung.key} onBack={onBack} />
+  ) : (
+    <RungDetail
+      rung={rung}
+      deficitPreview={prototypeDeficitRecord}
+      activity={activityLog}
+      onBack={onBack}
+    />
+  )

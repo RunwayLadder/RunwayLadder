@@ -1,13 +1,12 @@
 import { useState } from 'react'
 import { NetworkNotice } from '@/components/NetworkNotice'
 import { Panel } from '@/components/Primitives'
-import { liveNetwork } from '@/lib/network'
 import type { RungRecord } from '@/lib/rungRecord'
-import { activityLog, ladder, prototypeDeficitRecord, treasury } from '@/lib/treasuryMock'
+import { ladder, treasury } from '@/lib/treasuryMock'
 import { BuildLadder } from '@/views/BuildLadder'
 import { History } from '@/views/History'
 import { LadderDashboard } from '@/views/LadderDashboard'
-import { RungDetail } from '@/views/RungDetail'
+import { RungDetailPage } from '@/views/RungDetail'
 import { OwnerAddress, WalletCorner } from '@/wallet'
 
 type View = 'build' | 'dashboard' | 'history' | 'detail'
@@ -84,15 +83,7 @@ const App = () => {
         {view === 'history' && <History />}
         {view === 'detail' &&
           (selectedRung ? (
-            <RungDetail
-              rung={selectedRung}
-              // The deficit preview exists only for the prototype: there is no redemption in M1,
-              // and on a live rung this toggle would show a state that never happened.
-              {...(liveNetwork
-                ? {}
-                : { deficitPreview: prototypeDeficitRecord, activity: activityLog })}
-              onBack={() => setView('dashboard')}
-            />
+            <RungDetailPage rung={selectedRung} onBack={() => setView('dashboard')} />
           ) : (
             <Panel title="Rung detail">
               <p className="px-4 py-6 text-sm text-muted-foreground">
