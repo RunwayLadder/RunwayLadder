@@ -21,7 +21,7 @@ const DEFAULT_MIN_BALANCE_LAMPORTS = 50_000_000n
 
 export class ConfigError extends Error {
   constructor(readonly problems: readonly string[]) {
-    super(`keeper configuration is invalid:\n${problems.map((p) => `  - ${p}`).join('\n')}`)
+    super(['keeper configuration is invalid:', ...problems.map((p) => `  - ${p}`)].join('\n'))
     this.name = 'ConfigError'
   }
 }
