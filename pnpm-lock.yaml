@@ -14,15 +14,15 @@ importers:
       '@biomejs/biome':
         specifier: 2.5.9
         version: 2.5.9
-      '@solana/web3.js':
-        specifier: 1.98.4
-        version: 1.98.4(bufferutil@4.1.0)(typescript@7.0.2)
       '@runway-ladder/math':
         specifier: workspace:*
         version: link:packages/math
       '@runway-ladder/sdk':
         specifier: workspace:*
         version: link:packages/sdk
+      '@solana/web3.js':
+        specifier: 1.98.4
+        version: 1.98.4(bufferutil@4.1.0)(typescript@7.0.2)
       '@types/node':
         specifier: 22.20.1
         version: 22.20.1
@@ -39,8 +39,30 @@ importers:
         specifier: 4.1.11
         version: 4.1.11(@types/node@22.20.1)(jiti@1.21.7)(tsx@4.19.2)(yaml@2.9.0)
 
+  apps/keeper:
+    dependencies:
+      '@runway-ladder/sdk':
+        specifier: workspace:*
+        version: link:../../packages/sdk
+      '@solana/web3.js':
+        specifier: 1.98.4
+        version: 1.98.4(bufferutil@4.1.0)(typescript@7.0.2)
+      zod:
+        specifier: 4.4.3
+        version: 4.4.3
+    devDependencies:
+      tsx:
+        specifier: 4.19.2
+        version: 4.19.2
+
   apps/web:
     dependencies:
+      '@runway-ladder/math':
+        specifier: workspace:^
+        version: link:../../packages/math
+      '@runway-ladder/sdk':
+        specifier: workspace:*
+        version: link:../../packages/sdk
       '@solana/wallet-adapter-base':
         specifier: 0.9.27
         version: 0.9.27(@solana/web3.js@1.98.4(bufferutil@4.1.0)(typescript@7.0.2))
@@ -53,12 +75,6 @@ importers:
       '@tanstack/react-query':
         specifier: 5.101.4
         version: 5.101.4(react@18.3.1)
-      '@runway-ladder/math':
-        specifier: workspace:^
-        version: link:../../packages/math
-      '@runway-ladder/sdk':
-        specifier: workspace:*
-        version: link:../../packages/sdk
       bs58:
         specifier: 6.0.0
         version: 6.0.0
@@ -107,12 +123,12 @@ importers:
       '@coral-xyz/anchor':
         specifier: 0.32.1
         version: 0.32.1(bufferutil@4.1.0)(typescript@7.0.2)
-      '@solana/web3.js':
-        specifier: 1.98.4
-        version: 1.98.4(bufferutil@4.1.0)(typescript@7.0.2)
       '@runway-ladder/math':
         specifier: workspace:*
         version: link:../math
+      '@solana/web3.js':
+        specifier: 1.98.4
+        version: 1.98.4(bufferutil@4.1.0)(typescript@7.0.2)
       zod:
         specifier: 4.4.3
         version: 4.4.3
