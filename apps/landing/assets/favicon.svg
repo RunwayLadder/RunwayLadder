@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>RunwayLadder</title>
+  <rect width="64" height="64" rx="12" fill="#781818"/>
+  <g transform="rotate(-45 32 32)">
+    <circle cx="17" cy="32" r="9" fill="none" stroke="#c09030" stroke-width="4.5"/>
+    <rect x="24" y="29.75" width="32" height="4.5" rx="2.25" fill="#c09030"/>
+    <path d="M45 34h4v8h-4zM51 34h4v8h-4z" fill="#c09030"/>
+  </g>
+</svg>

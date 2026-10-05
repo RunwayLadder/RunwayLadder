@@ -7,7 +7,9 @@ The novelty isn't splitting principal from yield — Exponent already does that 
 the treasury layer on top: laddering one amount across several dates in a single
 signature, a roll policy, and a runway report showing how far the inflows reach.
 
-**Live prototype:** https://runwayladder.github.io/RunwayLadder/ — the dashboard on
+**Project page:** https://runwayladder.github.io/RunwayLadder/ — what the product does,
+the terms it comes with, and the figures measured so far.
+**Live prototype:** https://runwayladder.github.io/RunwayLadder/app/ — the dashboard on
 mock data, deployed from `main` by GitHub Actions. It reads no network yet and says
 so in its status bar; the network mode arrives with the devnet deployment.
 

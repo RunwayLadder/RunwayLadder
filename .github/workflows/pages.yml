@@ -1,8 +1,12 @@
-# Treasurer dashboard on GitHub Pages: https://runwayladder.github.io/RunwayLadder/
+# One Pages site, two folders in one artifact:
 #
-# What gets published is the prototype on mock data — VITE_RPC_URL is not set here, and
+#   https://runwayladder.github.io/RunwayLadder/       the landing page (apps/landing, static)
+#   https://runwayladder.github.io/RunwayLadder/app/   the treasurer dashboard (apps/web)
+#
+# The dashboard published here is the prototype on mock data — VITE_RPC_URL is not set, and
 # the status bar says so itself. Network mode on Pages arrives once the program is
 # deployed to devnet (T049): the VITE_* variables will then come from repository vars.
+# The app has no router (screens are state), so no 404.html copy is needed under /app/.
 #
 # Rust is not needed: the IDL lives in packages/sdk/src/idl and is bundled with web.
 name: pages
@@ -40,8 +44,14 @@ jobs:
 
       - run: pnpm --filter @runway-ladder/web exec vite build
         env:
-          # A project site lives under /<repo>/, not at the domain root.
-          PAGES_BASE: /${{ github.event.repository.name }}/
+          # A project site lives under /<repo>/; the app takes /app/ below it, the landing the root.
+          PAGES_BASE: /${{ github.event.repository.name }}/app/
+
+      # The landing has no build step: it is copied as is.
+      - run: |
+          mkdir -p dist
+          cp -r apps/landing/. dist/
+          cp -r apps/web/dist dist/app
 
       # Pages is enabled once by the repository owner: Settings → Pages → Source:
       # "GitHub Actions". GITHUB_TOKEN cannot create the site itself (the first
@@ -51,7 +61,7 @@ jobs:
 
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: apps/web/dist
+          path: dist
 
   deploy:
     needs: build

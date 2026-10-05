@@ -1,0 +1,539 @@
+/* RunwayLadder landing — a treasurer's account book. No build step: this file ships as is. */
+
+:root {
+  --paper: #f6f0e4;
+  --paper-2: #efe6d3;
+  --ink: #2b1614;
+  --oxblood: #781818;
+  --gold: #c09030;
+  --rule: #d8cbb4;
+  --muted: #6e5a52;
+  --spine: #781818;
+  --spine-ink: #f6f0e4;
+  --serif: "Instrument Serif", Georgia, "Times New Roman", serif;
+  --sans: ui-sans-serif, system-ui, "Segoe UI", Helvetica, sans-serif;
+  color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #1c0f0e;
+    --paper-2: #26150f;
+    --ink: #efe6d6;
+    --oxblood: #c55a4f;
+    --gold: #c9a04a;
+    --rule: #3a2622;
+    --muted: #a8968a;
+    --spine: #4a0f0f;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+}
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 17px;
+  line-height: 1.6;
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+a {
+  color: var(--oxblood);
+}
+
+a:hover {
+  color: var(--ink);
+}
+
+:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 3px;
+}
+
+.skip {
+  position: absolute;
+  left: -9999px;
+}
+
+.skip:focus {
+  left: 16px;
+  top: 16px;
+  z-index: 2;
+  background: var(--paper);
+  padding: 8px 12px;
+}
+
+.wrap {
+  max-width: 1240px;
+  margin: 0 auto;
+  padding-inline: 40px;
+}
+
+.serif {
+  font-family: var(--serif);
+  font-weight: 400;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.caps {
+  font-size: 12px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+/* The spine: the only place the logo's field appears. */
+.spine {
+  background: var(--spine);
+  color: var(--spine-ink);
+}
+
+.spine a {
+  color: var(--spine-ink);
+  text-decoration: none;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+}
+
+.spine a:hover {
+  color: var(--gold);
+}
+
+.spine .wrap {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  min-height: 72px;
+}
+
+.brand {
+  gap: 14px;
+}
+
+.brand span {
+  font-size: 26px;
+}
+
+/* Hero */
+.hero {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 56px;
+  padding-top: 88px;
+  padding-bottom: 96px;
+  align-items: flex-start;
+}
+
+.hero > div {
+  flex: 1 1 520px;
+  min-width: 0;
+}
+
+.hero figure {
+  flex: 1 1 440px;
+  min-width: 0;
+  margin: 0;
+}
+
+h1 {
+  font-size: 84px;
+  line-height: 0.98;
+  margin: 0 0 28px;
+  letter-spacing: -0.01em;
+}
+
+.lead {
+  font-size: 20px;
+  line-height: 1.55;
+  margin: 0 0 36px;
+  max-width: 34em;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  min-height: 48px;
+  padding: 0 24px;
+  background: #781818;
+  color: #f6f0e4;
+  text-decoration: none;
+  font-size: 16px;
+}
+
+.btn:hover {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.small {
+  font-size: 14px;
+}
+
+figcaption {
+  font-size: 14px;
+  margin-top: 14px;
+  max-width: 36em;
+}
+
+/* The ledger sheet: a margin column behind a double rule, like a ruled account book. */
+.sheet {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  border-top: 1px solid var(--rule);
+}
+
+.margin {
+  padding: 40px 28px 40px 0;
+  border-right: 4px double var(--oxblood);
+}
+
+.margin .caps {
+  margin-top: 14px;
+}
+
+.body {
+  padding: 40px 0 56px 40px;
+  min-width: 0;
+}
+
+.num {
+  font-size: 64px;
+  line-height: 1;
+  color: var(--oxblood);
+}
+
+h2 {
+  font-size: 42px;
+  line-height: 1.1;
+  margin: 0 0 24px;
+  max-width: 22ch;
+}
+
+.scroll {
+  overflow-x: auto;
+}
+
+.led {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 600px;
+}
+
+.hero .led {
+  min-width: 420px;
+}
+
+.led th {
+  text-align: left;
+  font-weight: 500;
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--ink);
+}
+
+.led td {
+  padding: 11px 14px;
+  border-bottom: 1px solid var(--rule);
+  white-space: nowrap;
+}
+
+.led .r {
+  text-align: right;
+}
+
+.led .cr {
+  border-left: 4px double var(--oxblood);
+}
+
+.arr {
+  box-shadow: inset 0 -2px 0 var(--gold);
+}
+
+.note {
+  font-family: var(--serif);
+  font-size: 21px;
+  line-height: 1.35;
+  margin: 0 0 18px;
+  max-width: 36em;
+}
+
+.scroll + .note {
+  margin-top: 22px;
+}
+
+.led .grp th {
+  border-bottom: 1px solid var(--rule);
+  font-size: 12px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--oxblood);
+  padding-top: 22px;
+}
+
+/* A ruled-off total: single rule above, double below — the bookkeeper's sum line. */
+.tot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px 48px;
+  padding: 18px 14px 20px;
+  margin: 28px 0 0;
+  border-top: 1px solid var(--ink);
+  border-bottom: 4px double var(--ink);
+}
+
+.tot p {
+  margin: 0;
+}
+
+.tot .lbl {
+  flex: 1 0 100%;
+}
+
+.tot .cell {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.big {
+  font-size: 44px;
+  line-height: 1;
+}
+
+.zero {
+  color: var(--oxblood);
+}
+
+.after {
+  font-size: 15px;
+  margin: 14px 0 0;
+  max-width: 44em;
+}
+
+.steps,
+.terms {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--ink);
+}
+
+.steps li,
+.terms li {
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr);
+  padding: 16px 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+.steps li:last-child {
+  border-bottom: 4px double var(--ink);
+}
+
+.terms li {
+  padding: 18px 0;
+}
+
+.mark {
+  font-family: var(--serif);
+  font-size: 30px;
+  line-height: 1;
+  color: var(--oxblood);
+}
+
+.pair {
+  margin-top: 28px;
+}
+
+.pair p {
+  margin: 0 0 24px;
+  max-width: 40em;
+}
+
+.pair figure {
+  margin: 0;
+}
+
+.pair img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--rule);
+}
+
+.roles {
+  border-top: 1px solid var(--ink);
+}
+
+.role {
+  display: grid;
+  grid-template-columns: 180px minmax(0, 1fr) minmax(0, 1fr);
+  column-gap: 28px;
+  padding: 22px 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+.role.head {
+  padding: 10px 0;
+  border-bottom: 1px solid var(--ink);
+}
+
+.role h3 {
+  margin: 0;
+  font-size: 28px;
+  line-height: 1.1;
+}
+
+.role p {
+  margin: 0;
+}
+
+.status {
+  background: var(--paper-2);
+}
+
+.status p {
+  font-size: 19px;
+  margin: 0 0 10px;
+}
+
+.status .small {
+  font-size: 14px;
+  margin: 6px 0 0;
+}
+
+.status a.app {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  margin-top: 18px;
+}
+
+footer .wrap {
+  min-height: 96px;
+}
+
+footer .serif {
+  font-size: 24px;
+}
+
+@media (max-width: 760px) {
+  .wrap {
+    padding-inline: 16px;
+  }
+
+  .hero {
+    padding-top: 48px;
+    padding-bottom: 56px;
+    gap: 40px;
+  }
+
+  h1 {
+    font-size: 52px;
+  }
+
+  .lead {
+    font-size: 18px;
+  }
+
+  .sheet {
+    grid-template-columns: 1fr;
+  }
+
+  .margin {
+    border-right: 0;
+    border-bottom: 4px double var(--oxblood);
+    padding: 28px 0 16px;
+    display: flex;
+    align-items: baseline;
+    gap: 16px;
+  }
+
+  .margin .caps {
+    margin-top: 0;
+  }
+
+  .num {
+    font-size: 44px;
+  }
+
+  .body {
+    padding: 24px 0 40px;
+  }
+
+  h2 {
+    font-size: 32px;
+  }
+
+  .role {
+    grid-template-columns: 1fr;
+    row-gap: 8px;
+  }
+
+  .role.head {
+    display: none;
+  }
+
+  .role .cannot::before {
+    content: "Cannot: ";
+    font-weight: 600;
+  }
+
+  .big {
+    font-size: 34px;
+  }
+
+  .note {
+    font-size: 19px;
+  }
+
+  .led th,
+  .led td {
+    padding: 10px 8px;
+  }
+
+  .led td {
+    font-size: 15px;
+  }
+
+  .hero .led {
+    min-width: 0;
+  }
+
+  .hero .led th:nth-child(4),
+  .hero .led td:nth-child(4) {
+    display: none;
+  }
+}
+
+.sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}

@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RunwayLadder — income a treasury can put in a budget</title>
+<meta name="description" content="Deposit stablecoins once and get fixed amounts on fixed dates instead of a floating APY. A treasury layer on Solana. Local validator only, not audited.">
+<meta name="theme-color" content="#781818">
+<link rel="canonical" href="https://runwayladder.github.io/RunwayLadder/">
+<meta property="og:type" content="website">
+<meta property="og:title" content="RunwayLadder — income a treasury can put in a budget">
+<meta property="og:description" content="Fixed amounts on fixed dates instead of a floating APY. Two full cycles on a local validator with no signature from the treasurer after the deposit.">
+<meta property="og:url" content="https://runwayladder.github.io/RunwayLadder/">
+<meta property="og:image" content="https://runwayladder.github.io/RunwayLadder/assets/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="A gold key on an oxblood field, with the line: Income a treasury can put in a budget.">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="assets/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif&amp;display=swap">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="spine">
+  <div class="wrap">
+    <a class="brand" href="#top" aria-label="RunwayLadder, top of page">
+      <img src="assets/logo.svg" width="74" height="26" alt="">
+      <span class="serif">RunwayLadder</span>
+    </a>
+    <a href="#status">Status ↓</a>
+  </div>
+</header>
+
+<section id="top" class="wrap hero" aria-labelledby="hero-title">
+  <div>
+    <p class="caps muted">Fixed income for onchain treasuries · Solana</p>
+    <h1 id="hero-title" class="serif">Income a treasury can put in a budget.</h1>
+    <p class="lead">Deposit stablecoins once and get a schedule of fixed amounts on fixed dates — set when you deposit, not a floating APY. When a date arrives, the money comes back to you or rolls to the far end of the schedule, without you signing again.</p>
+    <a class="btn" href="#status">Where it runs today ↓</a>
+    <p class="muted small">Local validator only · not on devnet yet · not audited.</p>
+  </div>
+  <figure>
+    <div class="scroll">
+      <table class="led">
+        <caption class="sr">The first four rows of a real schedule</caption>
+        <thead><tr><th scope="col">Date</th><th scope="col" class="r cr">Promised</th><th scope="col" class="r">Arrived</th><th scope="col">Status</th></tr></thead>
+        <tbody>
+          <tr><td>09:29:17</td><td class="r cr">99,750.019484</td><td class="r"><span class="arr">99,750.019484</span></td><td>Rolled forward</td></tr>
+          <tr><td>09:30:17</td><td class="r cr">99,750.034667</td><td class="r"><span class="arr">99,750.034667</span></td><td>Rolled forward</td></tr>
+          <tr><td>09:31:17</td><td class="r cr">99,750.049849</td><td class="r"><span class="arr">99,750.049849</span></td><td>Rolled forward</td></tr>
+          <tr><td>09:32:17</td><td class="r cr">99,750.065032</td><td class="r"><span class="arr">99,750.065032</span></td><td>Rolled forward</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <figcaption class="muted">A real run on a local validator, 2026-10-05, times in UTC. Every row was rolled forward by the keeper. Dates are a minute apart so two full cycles fit in one run.</figcaption>
+  </figure>
+</section>
+
+<main id="main" class="wrap">
+  <section id="schedule" class="sheet" aria-labelledby="schedule-title">
+    <div class="margin"><div class="serif num" aria-hidden="true">1</div><div class="caps">The schedule</div></div>
+    <div class="body">
+      <h2 id="schedule-title" class="serif">Two cycles. Nobody signed after the deposit.</h2>
+      <p class="note">400,000 opened across 4 dates in <b>1 signature</b>. In the run that timed it, the chart updated <b>0.04&nbsp;s</b> after confirmation.</p>
+      <div class="scroll">
+        <table class="led">
+          <caption class="sr">Every rung of the rolling schedule across two cycles</caption>
+          <thead><tr><th scope="col">Rung</th><th scope="col">Date</th><th scope="col" class="r cr">Promised</th><th scope="col" class="r">Arrived</th><th scope="col">Status</th></tr></thead>
+          <tbody>
+            <tr class="grp"><th colspan="5" scope="rowgroup">Opened by the treasurer</th></tr>
+            <tr><td>1</td><td>09:29:17</td><td class="r cr">99,750.019484</td><td class="r"><span class="arr">99,750.019484</span></td><td>Rolled forward</td></tr>
+            <tr><td>2</td><td>09:30:17</td><td class="r cr">99,750.034667</td><td class="r"><span class="arr">99,750.034667</span></td><td>Rolled forward</td></tr>
+            <tr><td>3</td><td>09:31:17</td><td class="r cr">99,750.049849</td><td class="r"><span class="arr">99,750.049849</span></td><td>Rolled forward</td></tr>
+            <tr><td>4</td><td>09:32:17</td><td class="r cr">99,750.065032</td><td class="r"><span class="arr">99,750.065032</span></td><td>Rolled forward</td></tr>
+            <tr class="grp"><th colspan="5" scope="rowgroup">Cycle 1 — rolled by the keeper</th></tr>
+            <tr><td>5</td><td>09:33:17</td><td class="r cr">99,500.704005</td><td class="r"><span class="arr">99,500.704005</span></td><td>Rolled forward</td></tr>
+            <tr><td>6</td><td>09:34:17</td><td class="r cr">99,500.719654</td><td class="r"><span class="arr">99,500.719654</span></td><td>Rolled forward</td></tr>
+            <tr><td>7</td><td>09:35:17</td><td class="r cr">99,500.734294</td><td class="r"><span class="arr">99,500.734294</span></td><td>Rolled forward</td></tr>
+            <tr><td>8</td><td>09:36:17</td><td class="r cr">99,500.749691</td><td class="r"><span class="arr">99,500.749691</span></td><td>Rolled forward</td></tr>
+            <tr class="grp"><th colspan="5" scope="rowgroup">Cycle 2 — rolled by the keeper</th></tr>
+            <tr><td>9</td><td>09:37:17</td><td class="r cr">99,252.012420</td><td class="r">—</td><td>Open</td></tr>
+            <tr><td>10</td><td>09:38:17</td><td class="r cr">99,252.027527</td><td class="r">—</td><td>Open</td></tr>
+            <tr><td>11</td><td>09:39:17</td><td class="r cr">99,252.042382</td><td class="r">—</td><td>Open</td></tr>
+            <tr><td>12</td><td>09:40:17</td><td class="r cr">99,252.057237</td><td class="r">—</td><td>Open</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="note">Each roll opens a new rung and pays the same 0.25% issue fee as the deposit did — nothing on top — so each cycle promises that much less.</p>
+      <p class="note"><b>8 rolls</b> by the keeper, <b>0 signatures</b> from the treasurer after the deposit.</p>
+      <div class="tot">
+        <p class="lbl caps muted">A second schedule, redeemed by its owner</p>
+        <p class="cell"><span class="serif big">399,000.169032</span><span>forecast before redemption</span></p>
+        <p class="cell"><span class="serif big">399,000.169032</span><span>received</span></p>
+        <p class="cell"><span class="serif big zero">0</span><span>difference</span></p>
+      </div>
+      <p class="muted after">Amounts in the deposited token’s units. Up to <b>11 dates</b> fit in one signature; a 12th breaks the transaction size limit.</p>
+    </div>
+  </section>
+
+  <section id="shortfall" class="sheet" aria-labelledby="shortfall-title">
+    <div class="margin"><div class="serif num" aria-hidden="true">2</div><div class="caps">When the source pays less</div></div>
+    <div class="body">
+      <h2 id="shortfall-title" class="serif">A shortfall is paid in one order, and you see it before it is paid.</h2>
+      <ol class="steps">
+        <li><span class="mark">1</span><span><b>The protocol buffer</b> — filled by fees and by any yield above the promise.</span></li>
+        <li><span class="mark">2</span><span><b>If the buffer is empty</b>, every rung of that date is cut by the same ratio.</span></li>
+      </ol>
+      <div class="pair">
+        <p>Paid less than promised, unmarked, is not a state the program can be in: the rung becomes <i>redeemed with deficit</i>, and the dashboard shows the amount that will actually arrive before you redeem.</p>
+        <figure>
+          <img src="assets/deficit.png" width="1230" height="318" alt="The dashboard's rung table. Rung 1 is labelled “Deficit expected” and rung 2 “Deficit · awaiting redemption”; each shows 100,000.00 with “of 100,000.01… promised” beneath it.">
+          <figcaption class="muted">The dashboard in network mode, on a local validator.</figcaption>
+        </figure>
+      </div>
+      <div class="tot">
+        <p class="lbl caps muted">Simulated rate paths, including the rate halving</p>
+        <p class="cell"><span class="serif big">400</span><span>paths</span></p>
+        <p class="cell"><span class="serif big">303</span><span>paid in full</span></p>
+        <p class="cell"><span class="serif big">97</span><span>marked short</span></p>
+        <p class="cell"><span class="serif big zero">0</span><span>short and unmarked</span></p>
+      </div>
+      <p class="muted after">Simulated — this proves the rule, not how a real market behaves.</p>
+    </div>
+  </section>
+
+  <section id="roles" class="sheet" aria-labelledby="roles-title">
+    <div class="margin"><div class="serif num" aria-hidden="true">3</div><div class="caps">Who signs what</div></div>
+    <div class="body">
+      <h2 id="roles-title" class="serif">Three parties, and what each can and cannot do.</h2>
+      <div class="roles">
+        <div class="role head caps muted" aria-hidden="true"><span>Party</span><span>Can</span><span>Cannot</span></div>
+        <div class="role">
+          <h3 class="serif">Treasurer</h3>
+          <p>Open the schedule in one signature. Redeem a matured rung. Turn rolling off at any time, without touching rungs already issued.</p>
+          <p class="muted cannot">Be assumed to hold one key — the owner can be a multisig.</p>
+        </div>
+        <div class="role">
+          <h3 class="serif">Keeper</h3>
+          <p>Run by anyone. Settle matured dates and roll the rungs of schedules set to roll.</p>
+          <p class="muted cannot">Send money anywhere: a roll has no destination parameter — the new rung lands in the same schedule, with the same owner.</p>
+        </div>
+        <div class="role">
+          <h3 class="serif">Operator</h3>
+          <p>Set the rate of each date. The rate, who set it and when are on screen before you sign.</p>
+          <p class="muted cannot">Be a market price. This is a deliberate point of trust.</p>
+        </div>
+      </div>
+      <div class="tot">
+        <p class="lbl caps muted">A full cycle — open across 4 dates, 4 redemptions</p>
+        <p class="cell"><span class="serif big">45,000</span><span>lamports in network fees</span></p>
+        <p class="cell"><span class="serif big">$0.011</span><span>at $250/SOL</span></p>
+      </div>
+      <p class="muted after">Account rent is separate and not returned today: <b>0.0093 SOL</b> per 4-date schedule, <b>0.0019 SOL</b> per roll.</p>
+    </div>
+  </section>
+
+  <section id="terms" class="sheet" aria-labelledby="terms-title">
+    <div class="margin"><div class="serif num" aria-hidden="true">4</div><div class="caps">Terms</div></div>
+    <div class="body">
+      <h2 id="terms-title" class="serif">Terms you accept.</h2>
+      <ol class="terms">
+        <li><span class="mark">1</span><span><b>No early exit.</b> Money is locked until its date. There is no way to get it out sooner today.</span></li>
+        <li><span class="mark">2</span><span><b>The rate comes from a set adapter, not from Kamino.</b> The schedule cannot tell them apart; the live source is the next milestone.</span></li>
+        <li><span class="mark">3</span><span><b>The operator sets the rate.</b> The program enforces the promise, not that the promise was a fair price.</span></li>
+        <li><span class="mark">4</span><span><b>Early dates are thinly protected.</b> The buffer starts with fees only.</span></li>
+        <li><span class="mark">5</span><span><b>Rent is not returned yet.</b> Closing a finished schedule to get it back is planned, not built.</span></li>
+        <li><span class="mark">6</span><span><b>Not audited.</b> The demo never goes to mainnet.</span></li>
+        <li><span class="mark">7</span><span><b>No multisig run yet.</b> The design allows a Squads safe as owner; no run has used one.</span></li>
+      </ol>
+    </div>
+  </section>
+</main>
+
+<section id="status" class="status" aria-labelledby="status-title">
+  <div class="wrap sheet">
+    <div class="margin"><div class="serif num" aria-hidden="true">5</div><div class="caps">Status</div></div>
+    <div class="body">
+      <h2 id="status-title" class="serif">Where it runs today.</h2>
+      <p>On a local validator. Every figure on this page comes from runs there, except the simulated rate paths, which say so.</p>
+      <p>A public devnet link comes with the next milestone.</p>
+      <a class="app" href="app/">Dashboard prototype — mock data →</a>
+      <p class="muted small">It reads no network and says so in its status bar.</p>
+    </div>
+  </div>
+</section>
+
+<footer class="spine">
+  <div class="wrap">
+    <span class="serif">RunwayLadder</span>
+    <a href="https://github.com/RunwayLadder/RunwayLadder">Source on GitHub ↗</a>
+  </div>
+</footer>
+</body>
+</html>
