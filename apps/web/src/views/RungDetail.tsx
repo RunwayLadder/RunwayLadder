@@ -13,9 +13,12 @@ import {
   epoch,
   ladder,
   prototypeDeficitRecord,
+  prototypeMarket,
 } from '@/lib/treasuryMock'
 
 type PreviewState = 'Active' | 'Redeemed with deficit'
+
+const shortAddress = (address: string) => `${address.slice(0, 4)}…${address.slice(-4)}`
 
 /**
  * `deficitPreview` exists only for the prototype: a live rung shows the state it is in on
@@ -26,6 +29,8 @@ export const RungDetail = ({
   deficitPreview,
   activity,
   action,
+  ladderLabel,
+  symbol,
   onBack,
 }: {
   rung: RungRecord
@@ -36,6 +41,10 @@ export const RungDetail = ({
   activity?: readonly ActivityRow[]
   /** What the treasurer can do with the rung — on the network, the Redeem panel. */
   action?: ReactNode
+  /** Which ladder the rung belongs to, as the back link names it. */
+  ladderLabel: string
+  /** The asset's unit beside every amount — on the network, the mint as read, never a guess. */
+  symbol: string
   onBack: () => void
 }) => {
   const [previewState, setPreviewState] = useState<PreviewState>('Active')
@@ -49,7 +58,7 @@ export const RungDetail = ({
         onClick={onBack}
         className="text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
       >
-        ← Back to ladder {ladder.id}
+        ← Back to ladder {ladderLabel}
       </button>
 
       <Panel
@@ -104,26 +113,30 @@ export const RungDetail = ({
 
           <div>
             <KeyValue label="Deposited">
-              <Amount value={record.deposited} />
+              <Amount unit={symbol} value={record.deposited} />
             </KeyValue>
-            <KeyValue label={`Fee (${ladder.feeRate})`}>
-              <Amount value={record.fee} className="text-muted-foreground" />
+            <KeyValue label={`Fee (${record.feeRate})`}>
+              <Amount unit={symbol} value={record.fee} className="text-muted-foreground" />
             </KeyValue>
             <KeyValue label="Working">
-              <Amount value={record.working} />
+              <Amount unit={symbol} value={record.working} />
             </KeyValue>
             {settlement ? (
               <>
                 <KeyValue label="Settled at maturity">
                   <div className="flex flex-wrap items-baseline gap-3">
-                    <Amount value={settlement.settled} className="text-2xl" />
+                    <Amount unit={symbol} value={settlement.settled} className="text-2xl" />
                     <span className="text-xs text-muted-foreground">
                       Promised <Amount value={record.guaranteed} unit={null} strike />
                     </span>
                   </div>
                 </KeyValue>
                 <KeyValue label="Shortfall">
-                  <Amount value={settlement.shortfall} className="text-[hsl(var(--caution))]" />
+                  <Amount
+                    unit={symbol}
+                    value={settlement.shortfall}
+                    className="text-[hsl(var(--caution))]"
+                  />
                 </KeyValue>
                 <KeyValue label="Epoch payout ratio">
                   <span className="num">{settlement.payoutRatio}</span>
@@ -139,6 +152,7 @@ export const RungDetail = ({
                 >
                   <div className="flex flex-wrap items-baseline gap-3">
                     <Amount
+                      unit={symbol}
                       value={record.pendingDeficit.expected}
                       className="text-2xl text-[hsl(var(--caution))]"
                     />
@@ -149,6 +163,7 @@ export const RungDetail = ({
                 </KeyValue>
                 <KeyValue label="Shortfall">
                   <Amount
+                    unit={symbol}
                     value={record.pendingDeficit.shortfall}
                     className="text-[hsl(var(--caution))]"
                   />
@@ -156,7 +171,7 @@ export const RungDetail = ({
               </>
             ) : (
               <KeyValue label="Guaranteed at maturity">
-                <Amount value={record.guaranteed} className="text-2xl" />
+                <Amount unit={symbol} value={record.guaranteed} className="text-2xl" />
               </KeyValue>
             )}
           </div>
@@ -269,6 +284,8 @@ const ChainRungDetail = ({ rungKey, onBack }: { rungKey: string; onBack: () => v
           previews={previews}
         />
       }
+      ladderLabel={shortAddress(view.address.toBase58())}
+      symbol={shortAddress(market.data.market.assetMint.toBase58())}
       onBack={onBack}
     />
   )
@@ -289,6 +306,8 @@ export const RungDetailPage = ({ rung, onBack }: { rung: RungRecord; onBack: () 
       rung={rung}
       deficitPreview={prototypeDeficitRecord}
       activity={activityLog}
+      ladderLabel={ladder.id}
+      symbol={prototypeMarket.symbol}
       onBack={onBack}
     />
   )

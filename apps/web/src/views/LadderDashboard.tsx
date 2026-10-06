@@ -115,6 +115,7 @@ const LadderPanels = ({
         <StatTile
           label="Guaranteed at maturity"
           value={totals.guaranteed}
+          unit={symbol}
           {...(totals.shortfall
             ? {
                 meta: `promised ${totals.shortfall.promised} · deficit ${totals.shortfall.deficit}`,
@@ -122,8 +123,18 @@ const LadderPanels = ({
               }
             : {})}
         />
-        <StatTile label="Laddered" value={totals.deposited} meta={`${totals.rungCount} rungs`} />
-        <StatTile label="Net gain" value={totals.netGain} meta={`fee ${totals.fee} paid`} />
+        <StatTile
+          label="Laddered"
+          value={totals.deposited}
+          unit={symbol}
+          meta={`${totals.rungCount} ${totals.rungCount === 1 ? 'rung' : 'rungs'}`}
+        />
+        <StatTile
+          label="Net gain"
+          value={totals.netGain}
+          unit={symbol}
+          meta={`fee ${totals.fee} paid`}
+        />
         <StatTile
           label="Next inflow"
           value={next ? (next.pendingDeficit?.expected ?? next.guaranteed) : '—'}

@@ -27,15 +27,23 @@ const PRIMARY = {
  * settling now; only when that answer could not be had is the promise all there is, and the
  * caption says the settlement decides the rest.
  */
-const OutcomeLine = ({ outcome, decimals }: { outcome: RedeemOutcome; decimals: number }) => {
+const OutcomeLine = ({
+  outcome,
+  decimals,
+  unit,
+}: {
+  outcome: RedeemOutcome
+  decimals: number
+  unit: string
+}) => {
   const promised = formatAmountShown(outcome.promised, decimals)
 
   if (outcome.kind === 'atSettlement') {
     return (
       <Caption>
-        Promised <Amount value={promised} />. The epoch has not been settled yet, so this signature
-        settles it first: if the base yield fell short, the rung is redeemed with a marked deficit,
-        never silently.
+        Promised <Amount unit={unit} value={promised} />. The epoch has not been settled yet, so
+        this signature settles it first: if the base yield fell short, the rung is redeemed with a
+        marked deficit, never silently.
         {outcome.reason && ` What it settles for could not be previewed — ${outcome.reason}.`}
       </Caption>
     )
@@ -47,25 +55,26 @@ const OutcomeLine = ({ outcome, decimals }: { outcome: RedeemOutcome; decimals: 
     return outcome.amount < outcome.promised ? (
       <Caution>
         This signature settles the epoch first, and as the chain stands now it settles short: you
-        receive <Amount value={amount} /> of the promised <Amount value={promised} />, and the
-        deficit is marked on the rung.
+        receive <Amount unit={unit} value={amount} /> of the promised{' '}
+        <Amount unit={unit} value={promised} />, and the deficit is marked on the rung.
       </Caution>
     ) : (
       <Caption>
         This signature settles the epoch first; as the chain stands now, you receive{' '}
-        <Amount value={amount} /> — the full promised amount.
+        <Amount unit={unit} value={amount} /> — the full promised amount.
       </Caption>
     )
   }
 
   return outcome.amount < outcome.promised ? (
     <Caution>
-      You receive <Amount value={amount} /> of the promised <Amount value={promised} /> — the epoch
-      settled with a deficit, and every rung in it takes the same ratio.
+      You receive <Amount unit={unit} value={amount} /> of the promised{' '}
+      <Amount unit={unit} value={promised} /> — the epoch settled with a deficit, and every rung in
+      it takes the same ratio.
     </Caution>
   ) : (
     <Caption>
-      You receive <Amount value={amount} /> — the full promised amount.
+      You receive <Amount unit={unit} value={amount} /> — the full promised amount.
     </Caption>
   )
 }
@@ -87,6 +96,9 @@ export const RedeemButton = ({
   rungNumber: number
 }) => {
   const { action, status, busy, redeem } = useRedeem({ view, entry, assetMint, previews })
+  // The mint as read, not a guessed ticker — the same unit the dashboard shows.
+  const mint = assetMint.toBase58()
+  const unit = `${mint.slice(0, 4)}…${mint.slice(-4)}`
 
   // A closed rung shows its settlement above; the panel stays only to report the
   // signature that closed it.
@@ -136,7 +148,7 @@ export const RedeemButton = ({
               (action?.kind === 'blocked' ? (
                 <Caution>{action.reason}</Caution>
               ) : (
-                ready && <OutcomeLine outcome={ready.outcome} decimals={decimals} />
+                ready && <OutcomeLine outcome={ready.outcome} decimals={decimals} unit={unit} />
               ))}
           </>
         )}

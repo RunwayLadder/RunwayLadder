@@ -91,6 +91,15 @@ describe('toRungRecords', () => {
     })
   })
 
+  it('the fee rate comes from the market the rung was issued in', () => {
+    const view = viewOf({ termDays: 30n, status: { kind: 'active' } })
+    const [charged] = toRungRecords(view, market, 6, NOW, NO_PREVIEWS)
+    const [free] = toRungRecords(view, { ...market, feeBps: 0 }, 6, NOW, NO_PREVIEWS)
+
+    expect(charged?.feeRate).toBe('0.25%')
+    expect(free?.feeRate).toBe('0.00%')
+  })
+
   it('the operator and the rate moment stay visible after signing too', () => {
     const [record] = toRungRecords(
       viewOf({ termDays: 30n, status: { kind: 'active' } }),

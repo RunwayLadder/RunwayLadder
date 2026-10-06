@@ -43,7 +43,7 @@ const weightsFor = (rungCount: number): Weight[] =>
 const isoStamp = (seconds: bigint): string =>
   `${new Date(Number(seconds) * 1000).toISOString().slice(0, 16).replace('T', ' ')} UTC`
 
-const toRow = (rung: PlanRung, decimals: number, source: string): RungRecord => ({
+const toRow = (rung: PlanRung, decimals: number, source: string, feeRate: string): RungRecord => ({
   key: `plan-rung-${rung.index}`,
   index: rung.index,
   id: `plan-rung-${rung.index}`,
@@ -53,6 +53,7 @@ const toRow = (rung: PlanRung, decimals: number, source: string): RungRecord => 
   fixedRate: formatBps(rung.epoch.rateBps),
   deposited: formatAmountShown(rung.deposited, decimals),
   fee: formatAmountShown(rung.fee, decimals),
+  feeRate,
   working: formatAmountShown(rung.working, decimals),
   guaranteed: formatAmountShown(rung.guaranteed, decimals),
   status: 'Active',
@@ -286,7 +287,14 @@ const PreviewColumn = ({
       >
         {plan ? (
           <RungTable
-            rungs={plan.rungs.map((rung) => toRow(rung, decimals, priced?.market.source ?? ''))}
+            rungs={plan.rungs.map((rung) =>
+              toRow(
+                rung,
+                decimals,
+                priced?.market.source ?? '',
+                formatBps(priced?.market.feeBps ?? 0),
+              ),
+            )}
             totals={{
               deposited: formatAmountShown(plan.totals.deposited, decimals),
               fee: formatAmountShown(plan.totals.fee, decimals),
@@ -321,6 +329,12 @@ const PreviewColumn = ({
     </div>
   )
 }
+
+/** On the network the panel names only what was read from it, not the prototype's treasury. */
+const panelSubtitle = (symbol: string): string =>
+  liveNetwork
+    ? `Asset ${symbol} · read from chain`
+    : `${treasury.name} · ${symbol} on ${treasury.network}`
 
 export const BuildLadder = ({ onConfirm }: { onConfirm: () => void }) => {
   const pricing = usePricing()
@@ -399,10 +413,7 @@ export const BuildLadder = ({ onConfirm }: { onConfirm: () => void }) => {
   return (
     <div className="grid gap-4 lg:grid-cols-[minmax(340px,420px)_1fr]">
       <div className="space-y-4">
-        <Panel
-          title="Build ladder"
-          subtitle={`${treasury.name} · ${symbol} on ${treasury.network}`}
-        >
+        <Panel title="Build ladder" subtitle={panelSubtitle(symbol)}>
           <FieldRow label="Amount" helper={amountHelper}>
             <div className="flex items-center gap-2">
               <input

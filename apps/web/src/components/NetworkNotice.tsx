@@ -71,14 +71,11 @@ const LiveNotice = ({ net }: { net: LiveNetwork }) => {
         {publicKey && ladder.data === null && <span>none opened yet</span>}
         {publicKey && ladder.data && (
           <span className="text-foreground">
-            <span className="num">{ladder.data.rungs.length}</span> rungs on chain
+            <span className="num">{ladder.data.rungs.length}</span>{' '}
+            {ladder.data.rungs.length === 1 ? 'rung' : 'rungs'} on chain
           </span>
         )}
       </Cell>
-
-      <span className="opacity-70">
-        Header totals are still prototype figures; the screens below read the network.
-      </span>
     </div>
   )
 }

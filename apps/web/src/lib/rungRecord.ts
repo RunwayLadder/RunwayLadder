@@ -65,6 +65,8 @@ export type RungRecord = {
   /** What the treasury paid in — before the fee. */
   readonly deposited: string
   readonly fee: string
+  /** The market's fee rate the rung was issued at — `Market.fee_bps`, set once at `init_market`. */
+  readonly feeRate: string
   readonly working: string
   readonly guaranteed: string
   readonly status: StatusLabel
@@ -248,6 +250,7 @@ export function toRungRecords(
       yieldSource: source,
       deposited: formatAmountShown(paidIn(rung), decimals),
       fee: formatAmountShown(rung.feePaid, decimals),
+      feeRate: formatBps(market.feeBps),
       working: formatAmountShown(rung.deposited, decimals),
       guaranteed: formatAmountShown(rung.promised, decimals),
       status: pending?.label ?? state.label,

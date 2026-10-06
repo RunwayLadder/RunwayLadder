@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { NetworkNotice } from '@/components/NetworkNotice'
 import { Panel } from '@/components/Primitives'
+import { liveNetwork } from '@/lib/network'
 import type { RungRecord } from '@/lib/rungRecord'
 import { ladder, treasury } from '@/lib/treasuryMock'
 import { BuildLadder } from '@/views/BuildLadder'
@@ -35,26 +36,41 @@ const App = () => {
         <div className="mx-auto flex max-w-[1440px] flex-wrap items-end justify-between gap-4 px-4 py-4 md:px-6">
           <div>
             <div className="label-caps">RunwayLadder · fixed-income layer</div>
-            <h1 className="mt-1 text-xl font-semibold tracking-tight">{treasury.name}</h1>
+            {/* On the network the header names only what is read from it: the prototype's
+                treasury name, balance and ladder id next to a real wallet would be invented
+                figures on a real screen. */}
+            <h1 className="mt-1 text-xl font-semibold tracking-tight">
+              {liveNetwork ? 'Treasury' : treasury.name}
+            </h1>
             <p className="mt-1 text-xs text-muted-foreground">
-              {treasury.owner} · <OwnerAddress fallback={treasury.address} /> · {treasury.asset} on{' '}
-              {treasury.network}
+              {liveNetwork ? (
+                <OwnerAddress fallback="no wallet connected" />
+              ) : (
+                <>
+                  {treasury.owner} · <OwnerAddress fallback={treasury.address} /> · {treasury.asset}{' '}
+                  on {treasury.network}
+                </>
+              )}
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-x-8 gap-y-1 text-xs text-muted-foreground">
             <WalletCorner />
-            <span>
-              Total stablecoin balance{' '}
-              <span className="num text-foreground">{treasury.totalBalance} USDC</span>
-            </span>
-            <span>
-              Laddered <span className="num text-foreground">{treasury.laddered}</span> · Floating{' '}
-              <span className="num text-foreground">{treasury.floating}</span> at{' '}
-              <span className="num text-foreground">{treasury.floatingRate}</span>
-            </span>
-            <span>
-              Ladder <span className="num text-foreground">{ladder.id}</span>
-            </span>
+            {!liveNetwork && (
+              <>
+                <span>
+                  Total stablecoin balance{' '}
+                  <span className="num text-foreground">{treasury.totalBalance} USDC</span>
+                </span>
+                <span>
+                  Laddered <span className="num text-foreground">{treasury.laddered}</span> ·
+                  Floating <span className="num text-foreground">{treasury.floating}</span> at{' '}
+                  <span className="num text-foreground">{treasury.floatingRate}</span>
+                </span>
+                <span>
+                  Ladder <span className="num text-foreground">{ladder.id}</span>
+                </span>
+              </>
+            )}
           </div>
         </div>
 
