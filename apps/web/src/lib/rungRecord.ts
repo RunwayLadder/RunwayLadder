@@ -273,25 +273,47 @@ function paidOutOf(entry: LadderView['rungs'][number], previews: SettlementPrevi
   return status.kind === 'active' ? entry.rung.promised : status.amount
 }
 
+/** A rolled rung's money lives on in the rung it was rolled into; it paid the treasury nothing. */
+const isRolled = (
+  status: RungStatus,
+): status is Extract<RungStatus, { kind: 'rolled' | 'rolledWithDeficit' }> =>
+  status.kind === 'rolled' || status.kind === 'rolledWithDeficit'
+
 /**
  * Ladder totals are computed from `bigint`s and formatted once at the end. `guaranteed` is what
  * the rungs actually pay, so the tile, the table footer and the chart agree on one number.
+ *
+ * The totals follow the treasury's money, not the list of rungs. A roll moves the same funds
+ * into a new rung, so counting every rung would count them twice. What the treasury paid in is
+ * counted at the rungs it opened itself, what comes back and what is at work at the rungs that
+ * end each chain, and a shortfall taken on a roll stays in the promise — that money is gone even
+ * though the rung that lost it is closed. Fees are every fee paid, a roll's included.
  */
 export function toLadderTotals(
   view: LadderView,
   decimals: number,
   previews: SettlementPreviews,
 ): LadderTotals {
-  const sums = view.rungs.reduce(
-    (total, entry) => ({
-      deposited: total.deposited + paidIn(entry.rung),
-      fee: total.fee + entry.rung.feePaid,
-      working: total.working + entry.rung.deposited,
-      guaranteed: total.guaranteed + paidOutOf(entry, previews),
-      promised: total.promised + entry.rung.promised,
-    }),
-    { deposited: 0n, fee: 0n, working: 0n, guaranteed: 0n, promised: 0n },
+  const openedByRoll = new Set(
+    view.rungs.flatMap(({ rung }) => (isRolled(rung.status) ? [rung.status.into.toBase58()] : [])),
   )
+
+  const sums = { deposited: 0n, fee: 0n, working: 0n, guaranteed: 0n, promised: 0n, rungs: 0 }
+  for (const entry of view.rungs) {
+    const { rung } = entry
+    if (!openedByRoll.has(entry.address.toBase58())) sums.deposited += paidIn(rung)
+    sums.fee += rung.feePaid
+
+    if (isRolled(rung.status)) {
+      const owed = rung.status.kind === 'rolledWithDeficit' ? rung.status.promised : rung.promised
+      sums.promised += owed > rung.status.amount ? owed - rung.status.amount : 0n
+    } else {
+      sums.working += rung.deposited
+      sums.guaranteed += paidOutOf(entry, previews)
+      sums.promised += rung.promised
+      sums.rungs += 1
+    }
+  }
 
   return {
     deposited: formatAmountShown(sums.deposited, decimals),
@@ -299,7 +321,7 @@ export function toLadderTotals(
     working: formatAmountShown(sums.working, decimals),
     guaranteed: formatAmountShown(sums.guaranteed, decimals),
     netGain: formatAmountShown(sums.guaranteed - sums.deposited, decimals),
-    rungCount: view.rungs.length,
+    rungCount: sums.rungs,
     shortfall:
       sums.guaranteed < sums.promised
         ? {

@@ -247,6 +247,70 @@ describe('toLadderTotals', () => {
   })
 })
 
+/** A rung rolled at maturity and the rung it opened — the same money, twice in the list. */
+const CHILD_ADDRESS = new PublicKey('4oqng8fCR6pML9cVYA39hCYn7wYCfcMw9HyVsJoGGGDX')
+const rolledChain = (parentStatus: RungStatus): LadderView => {
+  const base = viewOf(
+    { termDays: 30n, status: parentStatus },
+    { termDays: 60n, status: { kind: 'active' } },
+  )
+  const [parent, child] = base.rungs
+  if (!parent || !child) throw new Error('two rungs expected')
+
+  return {
+    ...base,
+    rungs: [
+      parent,
+      {
+        ...child,
+        address: CHILD_ADDRESS,
+        rung: {
+          ...child.rung,
+          deposited: 249_732_938_527n,
+          feePaid: 625_897_089n,
+          promised: 250_700_000_000n,
+        },
+      },
+    ],
+  }
+}
+
+describe('toLadderTotals after a roll', () => {
+  it('counts the treasury money once: paid in at the first rung, paid out at the last', () => {
+    const totals = toLadderTotals(
+      rolledChain({ kind: 'rolled', amount: 250_358_835_616n, into: CHILD_ADDRESS }),
+      6,
+      NO_PREVIEWS,
+    )
+
+    expect(totals).toMatchObject({
+      deposited: '250,000.00',
+      fee: '1,250.89…',
+      working: '249,732.93…',
+      guaranteed: '250,700.00',
+      netGain: '700.00',
+      rungCount: 1,
+      shortfall: null,
+    })
+  })
+
+  it('a shortfall taken on the roll stays in the promise', () => {
+    const totals = toLadderTotals(
+      rolledChain({
+        kind: 'rolledWithDeficit',
+        amount: 250_047_900_000n,
+        promised: 250_358_835_616n,
+        into: CHILD_ADDRESS,
+      }),
+      6,
+      NO_PREVIEWS,
+    )
+
+    expect(totals.guaranteed).toBe('250,700.00')
+    expect(totals.shortfall).toEqual({ promised: '251,010.93…', deficit: '310.93…' })
+  })
+})
+
 /** An open rung whose epoch promised exactly this rung — the ratio is then the rung's own. */
 const openIn = (status: Epoch['status'], termDays = 5n): LadderView => {
   const view = viewOf({ termDays, status: { kind: 'active' } })
