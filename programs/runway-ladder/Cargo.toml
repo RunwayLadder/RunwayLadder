@@ -3,6 +3,7 @@ name = "runway-ladder"
 version = "0.1.0"
 edition = "2021"
 description = "Fixed-yield ladder for on-chain treasuries"
+license = "Apache-2.0"
 
 [lib]
 crate-type = ["cdylib", "lib"]

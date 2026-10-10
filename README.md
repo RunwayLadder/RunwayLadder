@@ -115,3 +115,7 @@ Work in progress. Nothing is deployed to mainnet and nothing has been audited. D
 do not run against mainnet: today the stand is a plain local validator with the
 program loaded; a mainnet fork arrives with the Kamino adapter (M3), devnet for a
 public link.
+
+## License
+
+[Apache-2.0](LICENSE)

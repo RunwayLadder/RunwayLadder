@@ -440,6 +440,12 @@ footer .serif {
   font-size: 24px;
 }
 
+footer .links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 24px;
+}
+
 @media (max-width: 760px) {
   .wrap {
     padding-inline: 16px;
