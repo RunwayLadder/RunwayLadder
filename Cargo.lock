@@ -2471,9 +2471,11 @@ version = "0.1.0"
 dependencies = [
  "anchor-lang",
  "anchor-spl",
+ "base64 0.22.1",
  "mollusk-svm",
  "mollusk-svm-programs-token",
  "serde_json",
+ "sha2 0.10.9",
  "solana-account 4.3.2",
  "solana-instruction 3.4.1",
  "solana-message 4.4.1",

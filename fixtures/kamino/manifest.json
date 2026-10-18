@@ -1,0 +1,54 @@
+{
+  "note": "Mainnet snapshot for the fork. Written by scripts/kamino-dump.ts; do not edit by hand.",
+  "cluster": "mainnet-beta",
+  "slot": 458374732,
+  "blockTime": 1792313492,
+  "klend": {
+    "programId": "KLend2g3cP87fffoy8q1mQqGKjrxjC8boSyAYavgmjD",
+    "programData": "9uSbGW1y9H5Av6H5TKxQ1wnFApSq2t3oEpfF2YfjDQGA",
+    "deploySlot": 440486775,
+    "file": "klend.so",
+    "sha256": "ac5a94790923b0a8cccb981e6f20b5bbb4a67ae35490b685db3009b144771009",
+    "verifiedHash": "b1344d1979daec34bea862a3ed5c44ca5dc8b8e72ec32f1a90ac5150229c22d9",
+    "verifiedCommit": "a08760976f51a3a58c4a0c6ea27b4a0e565bca79",
+    "repo": "https://github.com/Kamino-Finance/klend"
+  },
+  "accounts": [
+    {
+      "name": "lending-market",
+      "file": "lending-market.json",
+      "pubkey": "7u3HeHxYDLhnCoErrtycNokbQYbWGzLs6JSDqGAv5PfF",
+      "sha256": "3b2bc92ef147794fa94fbb28491a6de0bdf82b18630473c2523b44207a0c195a"
+    },
+    {
+      "name": "lending-market-authority",
+      "file": "lending-market-authority.json",
+      "pubkey": "9DrvZvyWh1HuAoZxvYWMvkf2XCzryCpGgHqrMjyDWpmo",
+      "sha256": "da22119a074ed0d37ec8ce0776ec1f79f1360360a7edca346194d33307422aba"
+    },
+    {
+      "name": "usdc-reserve",
+      "file": "usdc-reserve.json",
+      "pubkey": "D6q6wuQSrifJKZYpR1M8R4YawnLDtDsMmWM1NbBmgJ59",
+      "sha256": "969a21b6bd49bf2658ac154437f4908fcd025aca181bf983874b039b4e8b9daa"
+    },
+    {
+      "name": "usdc-reserve-liquidity-supply",
+      "file": "usdc-reserve-liquidity-supply.json",
+      "pubkey": "Bgq7trRgVMeq33yt235zM2onQ4bRDBsY5EWiTetF4qw6",
+      "sha256": "78706fa79a6f2cb24b18d4a0d07d710656e103278f1287afa32f78022a8cb257"
+    },
+    {
+      "name": "usdc-reserve-collateral-mint",
+      "file": "usdc-reserve-collateral-mint.json",
+      "pubkey": "B8V6WVjPxW1UGwVDfxH2d2r8SyT4cqn7dQRK6XneVa7D",
+      "sha256": "8442c06a8595fc1a254734869300404a9ff2a14fc349c8442131eabb88d0016b"
+    },
+    {
+      "name": "usdc-mint",
+      "file": "usdc-mint.json",
+      "pubkey": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+      "sha256": "f7742a46eecb6db41490b8706f34caeea37078d9d2f3a3075bc352ff4c6c562c"
+    }
+  ]
+}
