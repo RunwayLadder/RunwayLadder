@@ -10,12 +10,13 @@ const MARKET = Buffer.from('market')
 const VAULT = Buffer.from('vault')
 const BUFFER = Buffer.from('buffer')
 const RESERVE = Buffer.from('reserve')
+const COLLATERAL = Buffer.from('collateral')
 const EPOCH = Buffer.from('epoch')
 const LADDER = Buffer.from('ladder')
 const RUNG = Buffer.from('rung')
 
 /** The source kind as it goes into the market seeds. Source parameters are not part of the seeds. */
-export const SOURCE_SEED = { deterministic: 0 } as const
+export const SOURCE_SEED = { deterministic: 0, kamino: 1 } as const
 
 export type SourceKind = keyof typeof SOURCE_SEED
 
@@ -44,6 +45,11 @@ export function bufferVaultAddress(programId: PublicKey, market: PublicKey): Pub
  */
 export function sourceReserveAddress(programId: PublicKey, market: PublicKey): PublicKey {
   return PublicKey.findProgramAddressSync([RESERVE, market.toBuffer()], programId)[0]
+}
+
+/** A Kamino market's kTokens: a token account the market owns, created by `init_market`. */
+export function collateralAddress(programId: PublicKey, market: PublicKey): PublicKey {
+  return PublicKey.findProgramAddressSync([COLLATERAL, market.toBuffer()], programId)[0]
 }
 
 /**

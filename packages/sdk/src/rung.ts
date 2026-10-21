@@ -7,7 +7,12 @@
  */
 
 import { BorshInstructionCoder, type Idl, utils } from '@coral-xyz/anchor'
-import { type PublicKey, SystemProgram, TransactionInstruction } from '@solana/web3.js'
+import {
+  type AccountMeta,
+  type PublicKey,
+  SystemProgram,
+  TransactionInstruction,
+} from '@solana/web3.js'
 import { PROGRAM_ID } from './accounts.js'
 import idl from './idl/runway_ladder.json' with { type: 'json' }
 import { bufferVaultAddress, rungAddress, vaultAddress } from './pda.js'
@@ -66,6 +71,8 @@ export type RollRungParams = {
    * landing in between makes the address stale, and the program refuses the roll.
    */
   readonly newRungIndex: number
+  /** The market's source accounts — `kaminoSourceAccounts` for Kamino, none otherwise. */
+  readonly sourceAccounts?: readonly AccountMeta[]
   readonly programId?: PublicKey
 }
 
@@ -98,6 +105,7 @@ export function buildRollRung(params: RollRungParams): TransactionInstruction {
       { pubkey: bufferVaultAddress(programId, params.market), isSigner: false, isWritable: true },
       { pubkey: utils.token.TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
       { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+      ...(params.sourceAccounts ?? []),
     ],
     data: coder.encode('roll_rung', {}),
   })

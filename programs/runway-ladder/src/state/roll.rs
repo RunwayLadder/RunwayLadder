@@ -4,6 +4,7 @@ use anchor_spl::token::{Token, TokenAccount};
 use crate::errors::LadderError;
 use crate::events::{RungIssued, RungRolled};
 use crate::math::{fee, promise};
+use crate::source::Source;
 use crate::state::{transfer_as_market, Epoch, Ladder, Market, RollPolicy, Rung, RungStatus};
 
 /// Rolling one matured rung into a new rung at the end of the horizon (FR-013).
@@ -14,8 +15,11 @@ use crate::state::{transfer_as_market, Epoch, Ladder, Market, RollPolicy, Rung, 
 /// nothing but whether to pay the rent — so a stranger's crank can do exactly what the owner's
 /// keeper would, and nothing else.
 ///
-/// The funds do not move: the old rung's payout already sits in the vault, and it goes back to
-/// work there under a new promise. Only the counters say which epoch it belongs to now.
+/// The old rung's payout already sits in the vault, where settlement put it, and it goes back to
+/// work from there under a new promise: the issuance fee to the buffer, the rest into the
+/// market's source for the target epoch — a no-op for the deterministic source, a fresh Kamino
+/// deposit for Kamino. The source's accounts come in `remaining_accounts`, checked against the
+/// market's pinned source, so the crank chooses no part of where the money works either.
 #[derive(Accounts)]
 pub struct RollRung<'info> {
     /// Whoever sends the crank. Pays the rent of the new rung and nothing else; who it is does
@@ -70,9 +74,10 @@ pub struct RollRung<'info> {
 
     pub token_program: Program<'info, Token>,
     pub system_program: Program<'info, System>,
+    // remaining_accounts: the source's, see `source::Source`.
 }
 
-pub fn roll_rung(ctx: Context<RollRung>) -> Result<()> {
+pub fn roll_rung<'info>(ctx: Context<'_, '_, 'info, 'info, RollRung<'info>>) -> Result<()> {
     require!(
         matches!(ctx.accounts.ladder.roll_policy, RollPolicy::Roll),
         LadderError::RollPolicyDisabled
@@ -107,7 +112,12 @@ pub fn roll_rung(ctx: Context<RollRung>) -> Result<()> {
     let new_key = ctx.accounts.new_rung.key();
     let index = ctx.accounts.ladder.rung_count;
 
-    ctx.accounts.target.record_issue(split.working, promised, seconds)?;
+    let a = &ctx.accounts;
+    transfer_as_market(&a.market, &a.token_program, &a.vault, &a.buffer_vault, split.fee)?;
+    let source = Source::from_accounts(&a.market, ctx.remaining_accounts)?;
+    let shares = source.deposit(&a.market, &a.vault, &a.token_program, split.working)?;
+
+    ctx.accounts.target.record_issue(split.working, promised, seconds, shares)?;
     ctx.accounts.ladder.rung_count = index.checked_add(1).ok_or(LadderError::MathOverflow)?;
 
     ctx.accounts.rung.status = if with_deficit {
@@ -128,8 +138,6 @@ pub fn roll_rung(ctx: Context<RollRung>) -> Result<()> {
     new_rung.bump = ctx.bumps.new_rung;
 
     let a = &ctx.accounts;
-    transfer_as_market(&a.market, &a.token_program, &a.vault, &a.buffer_vault, split.fee)?;
-
     emit!(RungRolled {
         ladder: ladder_key,
         rung: a.rung.key(),

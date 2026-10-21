@@ -4,7 +4,7 @@ use anchor_spl::token::{Token, TokenAccount};
 use crate::errors::LadderError;
 use crate::events::EpochSettled;
 use crate::math::{payout, waterfall, EpochMaturity, PayoutRatio, Settlement};
-use crate::source;
+use crate::source::Source;
 use crate::state::{transfer_as_market, Market};
 
 /// What happened to the epoch as a whole. A union rather than a status flag beside a
@@ -59,6 +59,15 @@ pub struct Epoch {
     ///
     /// `u128` because the product alone reaches `2^64` for large amounts over long spans.
     pub deposit_seconds: u128,
+    /// The units the yield source issued for the epoch's principal, in the source's own terms:
+    /// kTokens for Kamino, the principal itself for the deterministic source. Handed back to the
+    /// source whole at settlement. The core adds these up and never converts them — what they
+    /// are worth is known only once the source has paid them out.
+    ///
+    /// Per epoch, not per market: the market's kTokens sit in one account, but each epoch
+    /// entered at its own moments, and the exchange rate has already weighed that — the kTokens
+    /// a deposit bought are exactly its share of what the reserve has earned since.
+    pub source_shares: u64,
     /// What its rungs have taken out of the vault so far. Never above `paid`: the vault is
     /// shared by every epoch of the market, so a redemption past it would not fail — it would
     /// pay out of another epoch's principal. The difference that remains once every rung is
@@ -101,8 +110,15 @@ impl Epoch {
     }
 
     /// Adds one freshly issued rung to the epoch's accumulators. `seconds` is the span from
-    /// issuance to maturity the promise was computed over, and must be positive.
-    pub fn record_issue(&mut self, working: u64, promised: u64, seconds: i64) -> Result<()> {
+    /// issuance to maturity the promise was computed over, and must be positive; `shares` is
+    /// what the source issued for `working`.
+    pub fn record_issue(
+        &mut self,
+        working: u64,
+        promised: u64,
+        seconds: i64,
+        shares: u64,
+    ) -> Result<()> {
         self.total_deposited =
             self.total_deposited.checked_add(working).ok_or(LadderError::MathOverflow)?;
         self.total_promised =
@@ -116,6 +132,8 @@ impl Epoch {
             .ok_or(LadderError::MathOverflow)?;
         self.deposit_seconds =
             self.deposit_seconds.checked_add(rung_seconds).ok_or(LadderError::MathOverflow)?;
+        self.source_shares =
+            self.source_shares.checked_add(shares).ok_or(LadderError::MathOverflow)?;
 
         Ok(())
     }
@@ -156,6 +174,7 @@ pub fn create_epoch(ctx: Context<CreateEpoch>, maturity_ts: i64, rate_bps: u16) 
     epoch.total_deposited = 0;
     epoch.total_promised = 0;
     epoch.deposit_seconds = 0;
+    epoch.source_shares = 0;
     epoch.redeemed = 0;
     epoch.status = EpochStatus::Active;
     epoch.bump = ctx.bumps.epoch;
@@ -169,8 +188,9 @@ pub fn create_epoch(ctx: Context<CreateEpoch>, maturity_ts: i64, rate_bps: u16) 
 /// Settling the epoch: one computation, one ratio, for everyone who entered it (FR-011).
 ///
 /// **Permissionless and without a signer.** The instruction takes no destination and no amount,
-/// and every transfer it makes runs between the protocol's own accounts — the source reserve,
-/// the vault and the buffer — so there is nothing for a caller to divert. The same property
+/// and every transfer it makes runs between the protocol's own accounts — the source, the vault
+/// and the buffer — so there is nothing for a caller to divert. The source's accounts, if it has
+/// any, come in `remaining_accounts` and are checked against the market's pinned source. The same property
 /// `roll_rung` relies on. The transaction fee payer is whoever sends it; the program does not
 /// care who that is.
 #[derive(Accounts)]
@@ -193,14 +213,16 @@ pub struct SettleEpoch<'info> {
 
     /// The deterministic source's income, held as tokens. Checked by its seeds and not merely
     /// by its owner: the vault and the buffer are owned by the market too, and passing the
-    /// vault here would count the epoch's own principal a second time as income.
+    /// vault here would count the epoch's own principal a second time as income. Every market
+    /// has one; a Kamino market's simply stays empty.
     #[account(mut, seeds = [b"reserve", market.key().as_ref()], bump)]
     pub source_reserve: Account<'info, TokenAccount>,
 
     pub token_program: Program<'info, Token>,
+    // remaining_accounts: the source's, see `source::Source`.
 }
 
-pub fn settle_epoch(ctx: Context<SettleEpoch>) -> Result<()> {
+pub fn settle_epoch<'info>(ctx: Context<'_, '_, 'info, 'info, SettleEpoch<'info>>) -> Result<()> {
     let now = Clock::get()?.unix_timestamp;
 
     require!(ctx.accounts.epoch.maturity_ts <= now, LadderError::EpochNotMatured);
@@ -209,29 +231,27 @@ pub fn settle_epoch(ctx: Context<SettleEpoch>) -> Result<()> {
         LadderError::EpochAlreadySettled
     );
 
-    // What the source owes the whole epoch. The span ends at `maturity_ts`, which is already
-    // baked into `deposit_seconds` — deliberately, because the crank is permissionless and may
-    // arrive an hour or three days late. Accruing to `now` would let the moment someone chose
-    // to send the transaction decide how much each rung is paid.
-    let accrued = source::accrued(&ctx.accounts.market.source, ctx.accounts.epoch.deposit_seconds)?;
+    // The epoch's principal and income, brought into the vault — counted in tokens that
+    // arrived, never by a formula alone. The vault is shared by every epoch of the market, so
+    // counting income that never arrived would not fail here: it would quietly pay this epoch
+    // out of another epoch's principal, and the last epoch to redeem would find the hole
+    // unmarked. A source that delivers less becomes an ordinary shortfall, which the buffer and
+    // then the haircut handle in the open.
+    //
+    // For the deterministic source the span ends at `maturity_ts`, already baked into
+    // `deposit_seconds`, so a late crank changes nothing. Kamino earns until the redemption
+    // itself; whatever a late crank adds goes to the buffer as surplus, since the promise does
+    // not move — see `source::kamino`.
+    let a = &ctx.accounts;
+    let source = Source::from_accounts(&a.market, ctx.remaining_accounts)?;
+    let withdrawal =
+        source.withdraw(&a.market, &a.vault, &a.token_program, &a.source_reserve, &a.epoch)?;
+    let realized = withdrawal.realized;
 
-    // What the source actually delivers: the formula is a claim, the reserve is the money.
-    // The vault is shared by every epoch of the market, so counting income that never arrived
-    // would not fail here — it would quietly pay this epoch out of another epoch's principal,
-    // and the last epoch to redeem would find the hole unmarked. Taking only what is there
-    // turns an underfunded source into an ordinary shortfall, which the buffer and then the
-    // haircut already handle in the open.
-    let collected = accrued.min(ctx.accounts.source_reserve.amount);
-    let realized = ctx
-        .accounts
-        .epoch
-        .total_deposited
-        .checked_add(collected)
-        .ok_or(LadderError::MathOverflow)?;
-
-    // `total_promised` is a sum of per-rung `floor`s while `accrued` divides once over the
-    // summed `deposit_seconds`, so `realized` can exceed the rung-by-rung total by up to one
-    // unit per rung. The direction is chosen, not accidental: the dust stays with the treasury.
+    // For the deterministic source, `total_promised` is a sum of per-rung `floor`s while
+    // `accrued` divides once over the summed `deposit_seconds`, so `realized` can exceed the
+    // rung-by-rung total by up to one unit per rung. The direction is chosen, not accidental:
+    // the dust stays with the treasury.
     let settlement = waterfall(EpochMaturity {
         promised: ctx.accounts.epoch.total_promised,
         realized,
@@ -243,12 +263,12 @@ pub fn settle_epoch(ctx: Context<SettleEpoch>) -> Result<()> {
         Settlement::SettledWithDeficit { .. } => 0,
     };
 
-    // Validation first, then the movement of funds — as in `ladder_deposit`. A settlement that
-    // fails must leave every balance untouched rather than half moved. After these three the
-    // vault holds exactly `paid` for this epoch on top of what other epochs brought, which is
-    // what lets `redeem_rung` pay out of it without reaching into anyone else's principal.
-    let a = &ctx.accounts;
-    transfer_as_market(&a.market, &a.token_program, &a.source_reserve, &a.vault, collected)?;
+    // The source's money had to arrive before the waterfall could be computed — what Kamino
+    // returns is known only once it has returned it — so the order here is income, then the
+    // waterfall, then the buffer. A failure anywhere still leaves every balance untouched: the
+    // transaction is one unit. After these the vault holds exactly `paid` for this epoch on top
+    // of what other epochs brought, which is what lets `redeem_rung` pay out of it without
+    // reaching into anyone else's principal.
     transfer_as_market(&a.market, &a.token_program, &a.buffer_vault, &a.vault, settlement.from_buffer())?;
     // FR-011b: the surplus is the protocol's margin for carrying the rate risk.
     transfer_as_market(&a.market, &a.token_program, &a.vault, &a.buffer_vault, surplus)?;
@@ -267,7 +287,7 @@ pub fn settle_epoch(ctx: Context<SettleEpoch>) -> Result<()> {
         // Neither of these survives in the account, and without them a deficit cannot be told
         // apart from a promise that was too large in the first place — nor an underfunded
         // reserve from a source that simply paid less.
-        accrued,
+        accrued: withdrawal.accrued,
         realized,
         promised: epoch.total_promised,
         paid: settlement.paid(),

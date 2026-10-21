@@ -14,8 +14,10 @@ declare_id!("HShAvvN6icFTUAs2hiKTHr7nGomyrcKz66wPB6CNhewe");
 pub mod runway_ladder {
     use super::*;
 
-    pub fn init_market(
-        ctx: Context<InitMarket>,
+    /// The source's own accounts arrive in `remaining_accounts` — none for the deterministic
+    /// source, the reserve, its kToken mint and the account to create for Kamino.
+    pub fn init_market<'info>(
+        ctx: Context<'_, '_, 'info, 'info, InitMarket<'info>>,
         source: YieldSource,
         fee_bps: u16,
         min_rung_amount: u64,
@@ -41,8 +43,9 @@ pub mod runway_ladder {
         state::ladder_deposit(ctx, amount, distribution)
     }
 
-    /// Permissionless: no signer, no destination, no amount (FR-011).
-    pub fn settle_epoch(ctx: Context<SettleEpoch>) -> Result<()> {
+    /// Permissionless: no signer, no destination, no amount (FR-011). The source's accounts, if
+    /// it has any, arrive in `remaining_accounts` and are checked against the market.
+    pub fn settle_epoch<'info>(ctx: Context<'_, '_, 'info, 'info, SettleEpoch<'info>>) -> Result<()> {
         state::settle_epoch(ctx)
     }
 
@@ -52,8 +55,9 @@ pub mod runway_ladder {
     }
 
     /// Permissionless: the new rung goes into the same ladder, and the epoch is the market's
-    /// furthest (FR-013).
-    pub fn roll_rung(ctx: Context<RollRung>) -> Result<()> {
+    /// furthest (FR-013). The source's accounts arrive in `remaining_accounts`, as in
+    /// `settle_epoch`.
+    pub fn roll_rung<'info>(ctx: Context<'_, '_, 'info, 'info, RollRung<'info>>) -> Result<()> {
         state::roll_rung(ctx)
     }
 

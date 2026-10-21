@@ -110,7 +110,10 @@ const isoStamp = (seconds: bigint): string =>
  * the program would leave the previous name on screen.
  */
 export function sourceLabel(market: Market): string {
-  return `Deterministic adapter · ${formatBps(market.source.rateBps)} base`
+  const { source } = market
+  return source.kind === 'kamino'
+    ? `Kamino lending · reserve ${source.reserve.toBase58().slice(0, 4)}…`
+    : `Deterministic adapter · ${formatBps(source.rateBps)} base`
 }
 
 /**

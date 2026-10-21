@@ -49,9 +49,17 @@ type Fixture = {
     total_deposited: number
     total_promised: number
     deposit_seconds: string
+    source_shares: string
     redeemed: string
     status: string
     bump: number
+  }
+  market_kamino: {
+    base64: string
+    source_reserve: string
+    fee_bps: number
+    min_rung_amount: number
+    latest_maturity: number
   }
   rung_rolled_with_deficit: {
     base64: string
@@ -126,6 +134,10 @@ describe('decodeEpoch', () => {
 
   it('reads deposit_seconds off the reference account', () => {
     expect(epoch.depositSeconds).toBe(BigInt(fixture.epoch.deposit_seconds))
+    // Not zero, and not the same bytes as a neighbour: a decoder that skipped the field would
+    // shift every field after it, and `redeemed` below would read part of it.
+    expect(epoch.sourceShares).toBe(BigInt(fixture.epoch.source_shares))
+    expect(epoch.sourceShares).not.toBe(0n)
     expect(epoch.redeemed).toBe(BigInt(fixture.epoch.redeemed))
   })
 
@@ -172,6 +184,24 @@ describe('decodeEpoch', () => {
     expect(settled.redeemed).toBe(BigInt(fixture.epoch_settled_with_deficit.redeemed))
     if (settled.status.kind !== 'settledWithDeficit') throw new Error('unreachable')
     expect(settled.redeemed).toBeLessThanOrEqual(settled.status.paid)
+  })
+})
+
+describe('decodeMarket on a Kamino market', () => {
+  const market = decodeMarket(Buffer.from(fixture.market_kamino.base64, 'base64'))
+
+  it('flattens the source into its kind and the pinned reserve', () => {
+    expect(market.source.kind).toBe('kamino')
+    if (market.source.kind !== 'kamino') throw new Error('unreachable')
+    expect(market.source.reserve.toBase58()).toBe(fixture.market_kamino.source_reserve)
+  })
+
+  it('reads the fields after the source at their shifted offsets', () => {
+    // The variant is 33 bytes here rather than 3: a decoder that assumed the deterministic
+    // layout would read the fee out of the middle of the reserve key.
+    expect(market.feeBps).toBe(fixture.market_kamino.fee_bps)
+    expect(market.minRungAmount).toBe(BigInt(fixture.market_kamino.min_rung_amount))
+    expect(market.latestMaturity).toBe(BigInt(fixture.market_kamino.latest_maturity))
   })
 })
 

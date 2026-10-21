@@ -18,43 +18,15 @@ use runway_ladder::math::Distribution;
 use runway_ladder::state::{RollPolicy, YieldSource};
 
 mod common;
-use common::{key, Env, NOW, PINNED_MINT, PINNED_OWNER};
+use common::{budget_instructions, key, signed_size, Env, MAX_CU, NOW, PACKET_BYTES, PINNED_MINT, PINNED_OWNER};
 
 const DAY: i64 = 86_400;
-/// The maximum transaction size on the network.
-const PACKET_BYTES: usize = 1232;
 /// How much compute an instruction gets without an explicit request.
 const DEFAULT_CU: u64 = 200_000;
-/// The compute ceiling for the whole transaction.
-const MAX_CU: u64 = 1_400_000;
-/// One signature: 64 bytes plus a count byte.
-const SIGNATURE_BYTES: usize = 65;
 
 /// The ceiling this test pins. If it changed, the deposit's account set has
 /// changed, and a person should find out about it, not a treasurer on devnet.
 const CEILING: usize = 11;
-
-fn compute_budget_program() -> Pubkey {
-    "ComputeBudget111111111111111111111111111111".parse().expect("compute budget program id")
-}
-
-/// `SetComputeUnitLimit` and `SetComputeUnitPrice` — what the treasurer will actually
-/// send: the deposit no longer fits in the default 200k by the fifth rung,
-/// and without a priority fee the transaction risks not making it into a busy block.
-fn budget_instructions() -> Vec<common::svm::Instruction> {
-    let program = key(compute_budget_program());
-
-    let mut limit = vec![2u8];
-    limit.extend_from_slice(&1_400_000u32.to_le_bytes());
-
-    let mut price = vec![3u8];
-    price.extend_from_slice(&1_000u64.to_le_bytes());
-
-    vec![
-        common::svm::Instruction { program_id: program, accounts: vec![], data: limit },
-        common::svm::Instruction { program_id: program, accounts: vec![], data: price },
-    ]
-}
 
 /// A stand with `rungs` epochs and an open ladder, ready for the deposit. The keys are pinned:
 /// every address here is derived at run time with a bump search, and on keys that change from
@@ -88,18 +60,14 @@ fn ladder_of(rungs: usize) -> (Env, Pubkey, Vec<i64>, common::svm::Instruction) 
     (env, owner, maturities, deposit)
 }
 
-/// The size of the signed deposit transaction — computed by `solana-message`,
-/// not by our arithmetic: checking a formula of our own instead of the network limit
-/// would be checking the wrong thing.
+/// The size of the signed deposit transaction.
 fn transaction_bytes(rungs: usize, with_budget: bool) -> usize {
     let (_, owner, _, deposit) = ladder_of(rungs);
 
     let mut instructions = if with_budget { budget_instructions() } else { Vec::new() };
     instructions.push(deposit);
 
-    let message = solana_message::Message::new(&instructions, Some(&key(owner)));
-
-    message.serialize().len() + SIGNATURE_BYTES
+    signed_size(&instructions, owner)
 }
 
 fn run_deposit(rungs: usize) -> InstructionResult {

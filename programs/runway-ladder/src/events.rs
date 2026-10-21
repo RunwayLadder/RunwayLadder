@@ -52,10 +52,13 @@ pub struct RungIssued {
 pub struct EpochSettled {
     pub epoch: Pubkey,
     pub maturity_ts: i64,
-    /// What the source owed over the epoch's `deposit_seconds`, by its formula.
+    /// What the source earned the epoch: for the deterministic source, what it owed over the
+    /// epoch's `deposit_seconds` by its formula; for Kamino, the redemption above the principal
+    /// (zero if it came back below).
     pub accrued: u64,
     /// Principal plus what the source actually delivered: what the epoch had before the buffer
-    /// was asked. Below `principal + accrued` exactly when the source reserve ran short.
+    /// was asked. For the deterministic source, below `principal + accrued` exactly when the
+    /// source reserve ran short; for Kamino, the redemption itself.
     pub realized: u64,
     pub promised: u64,
     /// Equals `promised` unless the buffer ran out first.

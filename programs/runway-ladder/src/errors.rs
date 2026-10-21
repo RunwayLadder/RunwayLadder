@@ -77,4 +77,11 @@ pub enum LadderError {
     /// further epoch between the keeper reading the market and its transaction landing.
     #[msg("Rolled funds go only into the market's furthest maturity date — pass that epoch")]
     RollTargetNotLatest,
+
+    /// The accounts handed to the yield source are not the market's: a different reserve, a
+    /// kToken account the market does not own, or the wrong number of them. Like the other
+    /// account mismatches, it means a broken client — but it gets its own code, because the
+    /// source's accounts come in `remaining_accounts`, where Anchor checks nothing.
+    #[msg("Yield source accounts do not match the market's source")]
+    SourceAccountsMismatch,
 }

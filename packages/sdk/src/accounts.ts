@@ -37,7 +37,10 @@ const marketSchema = z
     asset_mint: publicKey,
     vault: publicKey,
     buffer_vault: publicKey,
-    source: z.object({ Deterministic: z.object({ rate_bps: rate }) }),
+    source: z.union([
+      z.object({ Deterministic: z.object({ rate_bps: rate }) }),
+      z.object({ Kamino: z.object({ reserve: publicKey }) }),
+    ]),
     fee_bps: bps,
     min_rung_amount: u64,
     /** The furthest epoch's maturity — the only one a roll goes into; zero before any epoch. */
@@ -49,7 +52,10 @@ const marketSchema = z
     assetMint: m.asset_mint,
     vault: m.vault,
     bufferVault: m.buffer_vault,
-    source: { kind: 'deterministic' as const, rateBps: m.source.Deterministic.rate_bps },
+    source:
+      'Kamino' in m.source
+        ? { kind: 'kamino' as const, reserve: m.source.Kamino.reserve }
+        : { kind: 'deterministic' as const, rateBps: m.source.Deterministic.rate_bps },
     feeBps: m.fee_bps,
     minRungAmount: m.min_rung_amount,
     latestMaturity: m.latest_maturity,
@@ -94,6 +100,9 @@ const epochSchema = z
     total_promised: u64,
     /** `Σ(principal × seconds)`, so a u128 — `u64` here only names the BN conversion. */
     deposit_seconds: u64,
+    /** The units the source issued for the principal: kTokens for Kamino, the principal itself
+     *  for the deterministic source. Not an amount of the asset — never add it to one. */
+    source_shares: u64,
     /** What the epoch's rungs have taken out of the vault so far — never above `paid`. */
     redeemed: u64,
     status: epochStatusSchema,
@@ -108,6 +117,7 @@ const epochSchema = z
     totalDeposited: e.total_deposited,
     totalPromised: e.total_promised,
     depositSeconds: e.deposit_seconds,
+    sourceShares: e.source_shares,
     redeemed: e.redeemed,
     status: e.status,
     bump: e.bump,

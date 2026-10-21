@@ -38,6 +38,7 @@ const epoch = (termDays: bigint): Epoch => ({
   totalDeposited: 0n,
   totalPromised: 0n,
   depositSeconds: 0n,
+  sourceShares: 0n,
   redeemed: 0n,
   status: { kind: 'active' },
   bump: 255,

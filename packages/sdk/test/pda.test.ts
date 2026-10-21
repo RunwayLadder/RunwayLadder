@@ -7,6 +7,7 @@ import { PROGRAM_ID } from '../src/accounts.js'
 import {
   associatedTokenAddress,
   bufferVaultAddress,
+  collateralAddress,
   epochAddress,
   ladderAddress,
   marketAddress,
@@ -22,6 +23,8 @@ type Fixture = {
   vault: string
   buffer_vault: string
   source_reserve: string
+  kamino_market: string
+  kamino_collateral: string
   epochs: { maturity_ts: number; address: string }[]
   ladder_owner: string
   ladder_seed: number
@@ -45,6 +48,12 @@ describe('addresses', () => {
     expect(vaultAddress(PROGRAM_ID, market).toBase58()).toBe(fixture.vault)
     expect(bufferVaultAddress(PROGRAM_ID, market).toBase58()).toBe(fixture.buffer_vault)
     expect(sourceReserveAddress(PROGRAM_ID, market).toBase58()).toBe(fixture.source_reserve)
+  })
+
+  it('derives the Kamino market of the same mint, and its kToken account', () => {
+    const kamino = marketAddress(PROGRAM_ID, assetMint, 'kamino')
+    expect(kamino.toBase58()).toBe(fixture.kamino_market)
+    expect(collateralAddress(PROGRAM_ID, kamino).toBase58()).toBe(fixture.kamino_collateral)
   })
 
   it.each(fixture.epochs)('derives the epoch maturing at $maturity_ts', (c) => {

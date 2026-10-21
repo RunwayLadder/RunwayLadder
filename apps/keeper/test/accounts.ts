@@ -36,6 +36,7 @@ export function epochAt(
       totalDeposited: 1_000n,
       totalPromised: 1_010n,
       depositSeconds: 0n,
+      sourceShares: 0n,
       redeemed: 0n,
       status,
       bump: 255,

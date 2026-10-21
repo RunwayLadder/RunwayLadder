@@ -4,6 +4,8 @@
 //! file. That is not dead code but a consequence of the compilation model.
 #![allow(dead_code)]
 
+pub mod kamino;
+
 use anchor_lang::prelude::Pubkey;
 use anchor_lang::solana_program::instruction::Instruction;
 use anchor_lang::solana_program::program_pack::Pack;
@@ -70,6 +72,38 @@ pub fn without_signature(mut ix: svm::Instruction, who: Pubkey) -> svm::Instruct
     ix
 }
 
+/// The maximum transaction size on the network.
+pub const PACKET_BYTES: usize = 1232;
+/// The compute ceiling for the whole transaction.
+pub const MAX_CU: u64 = 1_400_000;
+/// One signature: 64 bytes plus a count byte.
+const SIGNATURE_BYTES: usize = 65;
+
+/// `SetComputeUnitLimit` and `SetComputeUnitPrice` — what the treasurer will actually
+/// send: the deposit no longer fits in the default 200k by the fifth rung,
+/// and without a priority fee the transaction risks not making it into a busy block.
+pub fn budget_instructions() -> Vec<svm::Instruction> {
+    let program = svm::Pubkey::from_str_const("ComputeBudget111111111111111111111111111111");
+
+    let mut limit = vec![2u8];
+    limit.extend_from_slice(&1_400_000u32.to_le_bytes());
+
+    let mut price = vec![3u8];
+    price.extend_from_slice(&1_000u64.to_le_bytes());
+
+    vec![
+        svm::Instruction { program_id: program, accounts: vec![], data: limit },
+        svm::Instruction { program_id: program, accounts: vec![], data: price },
+    ]
+}
+
+/// The size of a transaction signed by `payer` alone — computed by `solana-message`, not by
+/// our arithmetic: checking a formula of our own instead of the network limit would be
+/// checking the wrong thing.
+pub fn signed_size(instructions: &[svm::Instruction], payer: Pubkey) -> usize {
+    solana_message::Message::new(instructions, Some(&key(payer))).serialize().len() + SIGNATURE_BYTES
+}
+
 pub const DECIMALS: u8 = 6;
 /// Deliberately above rent-exempt with margin: the tests check logic, not rent.
 pub const FUNDED: u64 = 10_000_000_000;
@@ -95,7 +129,7 @@ fn mint_account(authority: &Pubkey) -> Account {
 /// An SPL account with a given balance. Assembled by hand from the same version of
 /// `spl_token` as in the program: the mollusk helpers are built on another one, and their
 /// state types do not match `anchor_spl`.
-fn token_account(mint: &Pubkey, owner: &Pubkey, amount: u64) -> Account {
+pub fn token_account(mint: &Pubkey, owner: &Pubkey, amount: u64) -> Account {
     let mut data = vec![0u8; spl_token::state::Account::LEN];
     spl_token::state::Account {
         mint: *mint,
@@ -124,6 +158,8 @@ pub struct Deposits {
     pub total_deposited: u64,
     pub total_promised: u64,
     pub deposit_seconds: u128,
+    /// What the source issued for the principal — for the deterministic source, the principal.
+    pub source_shares: u64,
     pub status: EpochStatus,
     /// What the epoch's rungs have already taken out of the vault.
     pub redeemed: u64,
@@ -135,6 +171,7 @@ impl Default for Deposits {
             total_deposited: 0,
             total_promised: 0,
             deposit_seconds: 0,
+            source_shares: 0,
             status: EpochStatus::Active,
             redeemed: 0,
         }
@@ -150,6 +187,7 @@ impl Deposits {
             total_deposited: working,
             total_promised: runway_ladder::math::promise(working, rate_bps, seconds).unwrap(),
             deposit_seconds: u128::from(working) * u128::try_from(seconds).unwrap(),
+            source_shares: working,
             ..Deposits::default()
         }
     }
@@ -392,6 +430,7 @@ impl Env {
             total_deposited: deposits.total_deposited,
             total_promised: deposits.total_promised,
             deposit_seconds: deposits.deposit_seconds,
+            source_shares: deposits.source_shares,
             redeemed: deposits.redeemed,
             status: deposits.status,
             bump,
@@ -469,7 +508,7 @@ impl Env {
     }
 
     /// Adds the account, or replaces the placeholder `Env::new` left at that address.
-    fn put(&mut self, address: Pubkey, account: Account) {
+    pub fn put(&mut self, address: Pubkey, account: Account) {
         match self.accounts.iter_mut().find(|(k, _)| *k == key(address)) {
             Some(slot) => slot.1 = account,
             None => self.accounts.push((key(address), account)),

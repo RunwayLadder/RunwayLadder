@@ -4,6 +4,7 @@ use anchor_spl::token::{Token, TokenAccount, Transfer};
 use crate::errors::LadderError;
 use crate::events::{LadderFunded, RungIssued, RungRedeemed};
 use crate::math::{fee, promise, split, Distribution};
+use crate::source::Source;
 use crate::state::{transfer_as_market, Epoch, Ladder, Market};
 
 /// What happened to the rung. A union rather than a sum of boolean flags: the variant
@@ -65,6 +66,7 @@ pub struct Rung {
 /// Rungs arrive in `remaining_accounts` as "epoch, rung" pairs: their
 /// count is the treasurer's choice, while `#[derive(Accounts)]` describes a fixed set.
 /// The limit on how many pairs fit in one signature is measured by a separate test (T026).
+/// The yield source's accounts, if it has any, follow the pairs (`source::Source`).
 #[derive(Accounts)]
 pub struct LadderDeposit<'info> {
     #[account(mut)]
@@ -106,9 +108,11 @@ pub fn ladder_deposit<'info>(
 
     let rungs = distribution.rungs();
     require!(
-        rungs > 0 && ctx.remaining_accounts.len() == rungs * 2,
+        rungs > 0 && ctx.remaining_accounts.len() >= rungs * 2,
         LadderError::RungAccountsMismatch
     );
+    let (pairs, source_accounts) = ctx.remaining_accounts.split_at(rungs * 2);
+    let source = Source::from_accounts(&ctx.accounts.market, source_accounts)?;
 
     let parts = split(amount, &distribution)?;
 
@@ -147,8 +151,8 @@ pub fn ladder_deposit<'info>(
     transfer_from_owner(&ctx, ctx.accounts.buffer_vault.to_account_info(), withheld)?;
 
     for (index, (part, fee_paid)) in parts.iter().zip(fees).enumerate() {
-        let epoch_info = &ctx.remaining_accounts[index * 2];
-        let rung_info = &ctx.remaining_accounts[index * 2 + 1];
+        let epoch_info = &pairs[index * 2];
+        let rung_info = &pairs[index * 2 + 1];
 
         // `Account::try_from` checks the account owner and its discriminator:
         // slipping something other than an epoch in is not possible.
@@ -210,10 +214,19 @@ pub fn ladder_deposit<'info>(
             fee_paid,
         });
 
+        // The rung's working amount goes to work in the source — one deposit per rung, since
+        // each epoch keeps its own count of what the source issued for it.
+        let shares = source.deposit(
+            &ctx.accounts.market,
+            &ctx.accounts.vault,
+            &ctx.accounts.token_program,
+            working,
+        )?;
+
         // Epoch accumulators: the payout ratio is computed once per epoch, and without
         // these sums there would be nothing to compute it from. `seconds` is positive — the
         // maturity was checked to lie ahead.
-        epoch.record_issue(working, promised, seconds)?;
+        epoch.record_issue(working, promised, seconds, shares)?;
         epoch.exit(&crate::ID)?;
     }
 

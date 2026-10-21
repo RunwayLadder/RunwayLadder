@@ -79,6 +79,10 @@
     },
     {
       "name": "init_market",
+      "docs": [
+        "The source's own accounts arrive in `remaining_accounts` — none for the deterministic",
+        "source, the reserve, its kToken mint and the account to create for Kamino."
+      ],
       "discriminator": [
         33,
         253,
@@ -497,7 +501,8 @@
       "name": "roll_rung",
       "docs": [
         "Permissionless: the new rung goes into the same ladder, and the epoch is the market's",
-        "furthest (FR-013)."
+        "furthest (FR-013). The source's accounts arrive in `remaining_accounts`, as in",
+        "`settle_epoch`."
       ],
       "discriminator": [
         58,
@@ -676,7 +681,8 @@
     {
       "name": "settle_epoch",
       "docs": [
-        "Permissionless: no signer, no destination, no amount (FR-011)."
+        "Permissionless: no signer, no destination, no amount (FR-011). The source's accounts, if",
+        "it has any, arrive in `remaining_accounts` and are checked against the market."
       ],
       "discriminator": [
         148,
@@ -721,7 +727,8 @@
           "docs": [
             "The deterministic source's income, held as tokens. Checked by its seeds and not merely",
             "by its owner: the vault and the buffer are owned by the market too, and passing the",
-            "vault here would count the epoch's own principal a second time as income."
+            "vault here would count the epoch's own principal a second time as income. Every market",
+            "has one; a Kamino market's simply stays empty."
           ],
           "writable": true,
           "pda": {
@@ -1000,6 +1007,11 @@
       "code": 6019,
       "name": "RollTargetNotLatest",
       "msg": "Rolled funds go only into the market's furthest maturity date — pass that epoch"
+    },
+    {
+      "code": 6020,
+      "name": "SourceAccountsMismatch",
+      "msg": "Yield source accounts do not match the market's source"
     }
   ],
   "types": [
@@ -1110,6 +1122,20 @@
             "type": "u128"
           },
           {
+            "name": "source_shares",
+            "docs": [
+              "The units the yield source issued for the epoch's principal, in the source's own terms:",
+              "kTokens for Kamino, the principal itself for the deterministic source. Handed back to the",
+              "source whole at settlement. The core adds these up and never converts them — what they",
+              "are worth is known only once the source has paid them out.",
+              "",
+              "Per epoch, not per market: the market's kTokens sit in one account, but each epoch",
+              "entered at its own moments, and the exchange rate has already weighed that — the kTokens",
+              "a deposit bought are exactly its share of what the reserve has earned since."
+            ],
+            "type": "u64"
+          },
+          {
             "name": "redeemed",
             "docs": [
               "What its rungs have taken out of the vault so far. Never above `paid`: the vault is",
@@ -1162,7 +1188,9 @@
           {
             "name": "accrued",
             "docs": [
-              "What the source owed over the epoch's `deposit_seconds`, by its formula."
+              "What the source earned the epoch: for the deterministic source, what it owed over the",
+              "epoch's `deposit_seconds` by its formula; for Kamino, the redemption above the principal",
+              "(zero if it came back below)."
             ],
             "type": "u64"
           },
@@ -1170,7 +1198,8 @@
             "name": "realized",
             "docs": [
               "Principal plus what the source actually delivered: what the epoch had before the buffer",
-              "was asked. Below `principal + accrued` exactly when the source reserve ran short."
+              "was asked. For the deterministic source, below `principal + accrued` exactly when the",
+              "source reserve ran short; for Kamino, the redemption itself."
             ],
             "type": "u64"
           },
@@ -1818,6 +1847,15 @@
               {
                 "name": "rate_bps",
                 "type": "u16"
+              }
+            ]
+          },
+          {
+            "name": "Kamino",
+            "fields": [
+              {
+                "name": "reserve",
+                "type": "pubkey"
               }
             ]
           }

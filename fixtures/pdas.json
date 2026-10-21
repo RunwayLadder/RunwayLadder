@@ -7,6 +7,8 @@
   "vault": "GYeGarzrisEvJn8iyscCBqHgQp8UdgXC3CASBtZ3qnGk",
   "buffer_vault": "9RUUDhhbSmBCEs3cLpQEhN3tMQKsAmGohRHnT4Fkd1Dn",
   "source_reserve": "1sU6mRu4BMyU77RTMcYAfRFLcnmQytnnNsaWDvoud9B",
+  "kamino_market": "GMXHPDW3d8EdA1DDGBzaLF8dtdaWmfgdFE6532VJwXFT",
+  "kamino_collateral": "B7ePCgnZ75SSL94DFoKbjzxz1PEBHbDGwYtYEpY8kgiw",
   "epochs": [
     {
       "maturity_ts": 1800000000,

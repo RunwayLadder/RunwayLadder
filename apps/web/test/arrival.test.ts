@@ -54,6 +54,7 @@ const entryOf = ({
     totalDeposited: 297_000_000n,
     totalPromised: 300_000_000n,
     depositSeconds: 0n,
+    sourceShares: 0n,
     redeemed: 0n,
     status: epoch,
     bump: 254,

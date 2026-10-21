@@ -34,6 +34,7 @@ const epochOf = (status: Epoch['status']): Epoch => ({
   totalDeposited: 300_000_000n,
   totalPromised: 300_000_000n,
   depositSeconds: 0n,
+  sourceShares: 0n,
   redeemed: 0n,
   status,
   bump: 254,

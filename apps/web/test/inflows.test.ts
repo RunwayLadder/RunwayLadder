@@ -59,6 +59,7 @@ const viewOf = (...entries: Entry[]): LadderView => ({
       totalDeposited: 250_000_000_000n,
       totalPromised: PROMISED,
       depositSeconds: 0n,
+      sourceShares: 0n,
       redeemed: 0n,
       status: entry.epoch ?? { kind: 'active' },
       bump: 255,

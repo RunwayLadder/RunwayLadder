@@ -9,6 +9,7 @@
 
 import { BN, BorshInstructionCoder, type Idl, utils } from '@coral-xyz/anchor'
 import {
+  type AccountMeta,
   type Connection,
   type PublicKey,
   SystemProgram,
@@ -125,8 +126,13 @@ export async function fetchMintDecimals(
  * where instructions are encoded would drift from the first silently.
  */
 
-/** The base yield source. Only one for now — the boundary is narrowed on purpose (T014). */
-export type YieldSourceInput = { readonly kind: 'deterministic'; readonly rateBps: number }
+/**
+ * The base yield source. A Kamino market pins its reserve here; its accounts then travel in
+ * `sourceAccounts` (`kaminoInitAccounts`, `kaminoSourceAccounts`).
+ */
+export type YieldSourceInput =
+  | { readonly kind: 'deterministic'; readonly rateBps: number }
+  | { readonly kind: 'kamino'; readonly reserve: PublicKey }
 
 export type InitMarketParams = {
   readonly authority: PublicKey
@@ -135,6 +141,8 @@ export type InitMarketParams = {
   readonly feeBps: number
   /** The rung minimum in the mint's base units — a market field, not a constant. */
   readonly minRungAmount: bigint
+  /** What the source creates the market with — `kaminoInitAccounts` for Kamino, none otherwise. */
+  readonly sourceAccounts?: readonly AccountMeta[]
   readonly programId?: PublicKey
 }
 
@@ -153,9 +161,13 @@ export function buildInitMarket(params: InitMarketParams): TransactionInstructio
       { pubkey: sourceReserveAddress(programId, market), isSigner: false, isWritable: true },
       { pubkey: utils.token.TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
       { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+      ...(params.sourceAccounts ?? []),
     ],
     data: coder.encode('init_market', {
-      source: { Deterministic: { rate_bps: params.source.rateBps } },
+      source:
+        params.source.kind === 'kamino'
+          ? { Kamino: { reserve: params.source.reserve } }
+          : { Deterministic: { rate_bps: params.source.rateBps } },
       fee_bps: params.feeBps,
       min_rung_amount: new BN(params.minRungAmount.toString()),
     }),
@@ -198,6 +210,8 @@ export type SettleEpochParams = {
   readonly market: PublicKey
   /** The epoch's maturity date — the same one as in its seeds. */
   readonly maturityTs: bigint
+  /** The market's source accounts — `kaminoSourceAccounts` for Kamino, none otherwise. */
+  readonly sourceAccounts?: readonly AccountMeta[]
   readonly programId?: PublicKey
 }
 
@@ -226,6 +240,7 @@ export function buildSettleEpoch(params: SettleEpochParams): TransactionInstruct
         isWritable: true,
       },
       { pubkey: utils.token.TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
+      ...(params.sourceAccounts ?? []),
     ],
     data: coder.encode('settle_epoch', {}),
   })

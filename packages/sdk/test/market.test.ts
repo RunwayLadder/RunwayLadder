@@ -180,6 +180,43 @@ describe('buildInitMarket', () => {
   })
 })
 
+describe('buildInitMarket on Kamino', () => {
+  const authority = new PublicKey('9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM')
+  const assetMint = new PublicKey('EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v')
+  const reserve = new PublicKey('D6q6wuQSrifJKZYpR1M8R4YawnLDtDsMmWM1NbBmgJ59')
+  const tail = [
+    { pubkey: reserve, isSigner: false, isWritable: false },
+    { pubkey: PublicKey.unique(), isSigner: false, isWritable: false },
+    { pubkey: PublicKey.unique(), isSigner: false, isWritable: true },
+  ]
+  const instruction = buildInitMarket({
+    authority,
+    assetMint,
+    source: { kind: 'kamino', reserve },
+    feeBps: 25,
+    minRungAmount: 10_000_000n,
+    sourceAccounts: tail,
+  })
+
+  it('pins the reserve in the source, and takes the market of the Kamino kind', () => {
+    const decoded = new BorshInstructionCoder(idl as Idl).decode(instruction.data)
+    const args = decoded?.data as { source: { Kamino?: { reserve: PublicKey } } }
+
+    expect(args.source.Kamino?.reserve.toBase58()).toBe(reserve.toBase58())
+    expect(instruction.keys[2]?.pubkey.toBase58()).toBe(
+      marketPda(PROGRAM_ID, assetMint, 'kamino').toBase58(),
+    )
+  })
+
+  it("puts the source's accounts after the IDL's, in the order given", () => {
+    const accounts = (idl as Idl).instructions.find((i) => i.name === 'init_market')?.accounts
+    const declared = accounts?.length ?? -1
+
+    expect(instruction.keys).toHaveLength(declared + tail.length)
+    expect(instruction.keys.slice(declared)).toEqual(tail)
+  })
+})
+
 describe('buildCreateEpoch', () => {
   const authority = new PublicKey('9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM')
   const market = new PublicKey('CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8')

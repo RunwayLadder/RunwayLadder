@@ -1,6 +1,7 @@
 import { BN, BorshInstructionCoder, type Idl, utils } from '@coral-xyz/anchor'
 import type { Distribution } from '@runway-ladder/math'
 import {
+  type AccountMeta,
   ComputeBudgetProgram,
   type Connection,
   type PublicKey,
@@ -42,6 +43,13 @@ const coder = new BorshInstructionCoder(idl as Idl)
 export const MAX_RUNGS_PER_DEPOSIT = 11
 
 /**
+ * The same ceilings on a Kamino market, where the deposit carries the reserve route's nine
+ * accounts. Measured by `programs/runway-ladder/tests/kamino_source.rs`: seven rungs take 1230
+ * bytes of 1232, so opening the ladder in the same signature (24 bytes) costs a rung.
+ */
+export const MAX_RUNGS_PER_KAMINO_DEPOSIT = { deposit: 7, setup: 6 } as const
+
+/**
  * The deposit no longer fits in the default 200k compute units by the fifth rung, so
  * the budget request is not an optimisation but a condition of execution. The margin over
  * the measured (~20k per rung) is deliberate: unused units are not charged, while
@@ -50,8 +58,10 @@ export const MAX_RUNGS_PER_DEPOSIT = 11
  * Opening the ladder is a separate term because it also spends compute from
  * the same ceiling: the limit applies to the transaction, not the instruction.
  */
-function computeUnitLimit(rungs: number, opensLadder: boolean): number {
-  return 50_000 + 25_000 * rungs + (opensLadder ? 25_000 : 0)
+function computeUnitLimit(rungs: number, opensLadder: boolean, viaSource: boolean): number {
+  // A Kamino deposit CPI is ~38k on top of the rung itself (measured: 7 rungs ≈ 432k in all).
+  const perRung = 25_000 + (viaSource ? 40_000 : 0)
+  return 50_000 + perRung * rungs + (opensLadder ? 25_000 : 0)
 }
 
 export type LadderDepositParams = {
@@ -71,6 +81,11 @@ export type LadderDepositParams = {
    * stale and the program refuses the deposit before any funds move.
    */
   firstRung: number
+  /**
+   * The market's source accounts, after the rung pairs — `kaminoSourceAccounts` for Kamino,
+   * none for the deterministic source.
+   */
+  sourceAccounts?: readonly AccountMeta[]
   programId?: PublicKey
 }
 
@@ -81,10 +96,11 @@ export type LadderDepositParams = {
  * `buildLadderSetup`: opening and depositing in one signature.
  */
 export function buildLadderDeposit(params: LadderDepositParams): TransactionInstruction[] {
-  const rungs = checkedRungCount(params)
+  const rungs = checkedRungCount(params, false)
+  const viaSource = (params.sourceAccounts?.length ?? 0) > 0
 
   return [
-    ComputeBudgetProgram.setComputeUnitLimit({ units: computeUnitLimit(rungs, false) }),
+    ComputeBudgetProgram.setComputeUnitLimit({ units: computeUnitLimit(rungs, false, viaSource) }),
     depositInstruction(params),
   ]
 }
@@ -169,10 +185,11 @@ export type LadderSetupParams = Omit<LadderDepositParams, 'firstRung'> &
  * no new account to the message — only its own 24 bytes.
  */
 export function buildLadderSetup(params: LadderSetupParams): TransactionInstruction[] {
-  const rungs = checkedRungCount(params)
+  const rungs = checkedRungCount(params, true)
+  const viaSource = (params.sourceAccounts?.length ?? 0) > 0
 
   return [
-    ComputeBudgetProgram.setComputeUnitLimit({ units: computeUnitLimit(rungs, true) }),
+    ComputeBudgetProgram.setComputeUnitLimit({ units: computeUnitLimit(rungs, true, viaSource) }),
     buildOpenLadder(params),
     depositInstruction({ ...params, firstRung: 0 }),
   ]
@@ -202,6 +219,7 @@ function depositInstruction(params: LadderDepositParams): TransactionInstruction
     keys.push({ pubkey: epoch, isSigner: false, isWritable: true })
     keys.push({ pubkey: rung, isSigner: false, isWritable: true })
   })
+  keys.push(...(params.sourceAccounts ?? []))
 
   const data = coder.encode('ladder_deposit', {
     amount: new BN(params.amount.toString()),
@@ -217,8 +235,16 @@ function depositInstruction(params: LadderDepositParams): TransactionInstruction
  * The checks here duplicate the onchain refusals on purpose. The program would say the
  * same, but after signing — and the treasurer must see the error before it.
  */
-function checkedRungCount(params: Omit<LadderDepositParams, 'firstRung'>): number {
+function checkedRungCount(
+  params: Omit<LadderDepositParams, 'firstRung'>,
+  opensLadder: boolean,
+): number {
   const rungs = rungCount(params.distribution)
+  // The only source with accounts of its own is Kamino; its accounts take bytes from the rungs.
+  const limit =
+    (params.sourceAccounts?.length ?? 0) > 0
+      ? MAX_RUNGS_PER_KAMINO_DEPOSIT[opensLadder ? 'setup' : 'deposit']
+      : MAX_RUNGS_PER_DEPOSIT
 
   if (params.amount <= 0n) {
     throw new RangeError('deposit amount must be greater than zero')
@@ -228,10 +254,8 @@ function checkedRungCount(params: Omit<LadderDepositParams, 'firstRung'>): numbe
       `deposit has ${rungs} rungs but ${params.maturities.length} maturity dates`,
     )
   }
-  if (rungs > MAX_RUNGS_PER_DEPOSIT) {
-    throw new RangeError(
-      `${rungs} rungs do not fit in one signature: the limit is ${MAX_RUNGS_PER_DEPOSIT}`,
-    )
+  if (rungs > limit) {
+    throw new RangeError(`${rungs} rungs do not fit in one signature: the limit is ${limit}`)
   }
 
   return rungs

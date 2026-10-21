@@ -11,6 +11,11 @@ pub enum YieldSource {
     /// The rate is given as a parameter: reproducible runs and devnet, where third-party
     /// protocols do not exist at all.
     Deterministic { rate_bps: u16 },
+    /// Kamino's lending reserve for the market's asset: the principal goes into it through CPI
+    /// and comes back with whatever it earned. The reserve is pinned here, at market creation,
+    /// and every instruction that moves funds checks the one it is handed against it — a
+    /// caller chooses no part of where the money works.
+    Kamino { reserve: Pubkey },
 }
 
 impl YieldSource {
@@ -24,6 +29,7 @@ impl YieldSource {
     pub fn seed(&self) -> [u8; 1] {
         match self {
             YieldSource::Deterministic { .. } => [0],
+            YieldSource::Kamino { .. } => [1],
         }
     }
 }
@@ -115,10 +121,11 @@ pub struct InitMarket<'info> {
 
     pub token_program: Program<'info, Token>,
     pub system_program: Program<'info, System>,
+    // remaining_accounts: what `source::init` asks of the market's source.
 }
 
-pub fn init_market(
-    ctx: Context<InitMarket>,
+pub fn init_market<'info>(
+    ctx: Context<'_, '_, 'info, 'info, InitMarket<'info>>,
     source: YieldSource,
     fee_bps: u16,
     min_rung_amount: u64,
@@ -136,12 +143,20 @@ pub fn init_market(
     market.latest_maturity = 0;
     market.bump = ctx.bumps.market;
 
-    Ok(())
+    // Whatever the source needs to hold for the market — for Kamino, the account its kTokens
+    // land in. Created here, once, so that no later instruction takes an account a caller made.
+    crate::source::init(
+        &ctx.accounts.market,
+        &ctx.accounts.authority.to_account_info(),
+        &ctx.accounts.token_program.to_account_info(),
+        &ctx.accounts.system_program.to_account_info(),
+        ctx.remaining_accounts,
+    )
 }
 
 /// One transfer out of a token account the market owns, signed by the market PDA. Every movement
-/// of the protocol's money — settlement between its own accounts, redemption to the treasury —
-/// goes through here, so the signer seeds exist in one place.
+/// of the protocol's money between token accounts — settlement between its own accounts,
+/// redemption to the treasury — goes through here.
 pub fn transfer_as_market<'info>(
     market: &Account<'info, Market>,
     token_program: &Program<'info, Token>,
@@ -153,20 +168,30 @@ pub fn transfer_as_market<'info>(
         return Ok(());
     }
 
-    let asset_mint = market.asset_mint;
-    let source_seed = market.source.seed();
-    let seeds: &[&[u8]] = &[b"market", asset_mint.as_ref(), &source_seed, &[market.bump]];
+    market.sign(|signer| {
+        anchor_spl::token::transfer(
+            CpiContext::new_with_signer(
+                token_program.to_account_info(),
+                Transfer {
+                    from: from.to_account_info(),
+                    to: to.to_account_info(),
+                    authority: market.to_account_info(),
+                },
+                signer,
+            ),
+            amount,
+        )
+    })
+}
 
-    anchor_spl::token::transfer(
-        CpiContext::new_with_signer(
-            token_program.to_account_info(),
-            Transfer {
-                from: from.to_account_info(),
-                to: to.to_account_info(),
-                authority: market.to_account_info(),
-            },
-            &[seeds],
-        ),
-        amount,
-    )
+impl Market {
+    /// Runs `f` with the market PDA's signer seeds. Every CPI the market signs — a transfer
+    /// between its own accounts, a deposit into the source — goes through here, so the seeds
+    /// exist in one place.
+    pub fn sign<R>(&self, f: impl FnOnce(&[&[&[u8]]]) -> R) -> R {
+        let asset_mint = self.asset_mint;
+        let source_seed = self.source.seed();
+        let bump = [self.bump];
+        f(&[&[b"market", asset_mint.as_ref(), &source_seed, &bump]])
+    }
 }

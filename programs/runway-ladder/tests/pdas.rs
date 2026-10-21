@@ -46,6 +46,20 @@ fn sdk_addresses_match_the_program_seeds() {
     let (reserve, _) = Pubkey::find_program_address(&[b"reserve", market.as_ref()], &program_id);
     assert_eq!(reserve, pubkey(&f["source_reserve"]), "source reserve");
 
+    // The same mint served by Kamino is another market, with its kToken account under it. The
+    // reserve key is a parameter of the source and stays out of the seeds.
+    let kamino = YieldSource::Kamino { reserve: Pubkey::new_unique() };
+    let (kamino_market, _) = Pubkey::find_program_address(
+        &[b"market", asset_mint.as_ref(), &kamino.seed()],
+        &program_id,
+    );
+    assert_eq!(kamino_market, pubkey(&f["kamino_market"]), "Kamino market");
+    assert_eq!(
+        runway_ladder::source::kamino::collateral_address(&kamino_market).0,
+        pubkey(&f["kamino_collateral"]),
+        "Kamino collateral"
+    );
+
     for case in f["epochs"].as_array().expect("epochs") {
         let maturity_ts = case["maturity_ts"].as_i64().expect("maturity_ts");
         let (epoch, _) = Pubkey::find_program_address(
@@ -82,4 +96,10 @@ fn source_parameters_stay_out_of_the_market_seeds() {
     let b = YieldSource::Deterministic { rate_bps: 9_999 };
 
     assert_eq!(a.seed(), b.seed());
+
+    // Nor is the Kamino reserve: the source kind makes the market, its parameters do not.
+    let c = YieldSource::Kamino { reserve: Pubkey::new_unique() };
+    let d = YieldSource::Kamino { reserve: Pubkey::new_unique() };
+    assert_eq!(c.seed(), d.seed());
+    assert_ne!(a.seed(), c.seed());
 }
